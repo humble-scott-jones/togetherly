@@ -264,6 +264,11 @@ async function saveProfile(){
   }
   btn30.disabled = false;
   updateSummary();
+  // show the setup-complete modal if present
+  try{
+    const modal = document.getElementById('setup-modal') || document.getElementById('modal');
+    if (modal) modal.classList.remove('hidden');
+  }catch(e){/* ignore */}
 }
 
 // wire company input to answers
@@ -377,3 +382,34 @@ function groupBy(arr, key){
 function capitalize(s){ return s ? s[0].toUpperCase() + s.slice(1) : s; }
 function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function escapeAttr(s){ return (s||"").replace(/"/g, "&quot;"); }
+
+// Modal wiring: attach handlers once DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('setup-modal');
+  if (!modal) return;
+  const closeBtn = document.getElementById('modal-close');
+  const xBtn = document.getElementById('modal-x');
+  const gen1Btn = document.getElementById('modal-generate-1');
+  const gen30Btn = document.getElementById('modal-generate-30');
+
+  closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
+  xBtn?.addEventListener('click', () => modal.classList.add('hidden'));
+
+  gen1Btn?.addEventListener('click', async () => {
+    modal.classList.add('hidden');
+    try{
+      await maybeSaveDefaults();
+      const data = await generate(1);
+      renderPosts(data);
+    }catch(err){ console.error('generate(1) failed', err); }
+  });
+
+  gen30Btn?.addEventListener('click', async () => {
+    modal.classList.add('hidden');
+    try{
+      await maybeSaveDefaults();
+      const data = await generate(30);
+      renderPosts(data);
+    }catch(err){ console.error('generate(30) failed', err); }
+  });
+});
