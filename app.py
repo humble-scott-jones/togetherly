@@ -111,6 +111,14 @@ def save_profile():
     if isinstance(company, str):
         company = company.strip()
         company = company.title() if company else ""
+
+    # server-side validation: length and allowed chars
+    if company:
+        if len(company) > 100:
+            return jsonify({"ok": False, "error": "Company name is too long (max 100 chars)."}), 400
+        import re
+        if not re.match(r"^[\w \-\'\.\&]+$", company):
+            return jsonify({"ok": False, "error": "Company name contains invalid characters."}), 400
     row = (
         profile_id,
         data.get("industry", "Business"),

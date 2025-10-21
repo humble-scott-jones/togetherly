@@ -246,11 +246,22 @@ async function saveProfile(){
     return; // don't save while invalid
   }
 
-  await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
+  const resp = await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify(answers)
   });
+  if (!resp.ok){
+    let j = null;
+    try{ j = await resp.json(); }catch(e){}
+    const msg = (j && j.error) ? j.error : `Save failed (HTTP ${resp.status})`;
+    const existingError = document.getElementById('company-error');
+    if (existingError) existingError.remove();
+    const el = document.createElement('div'); el.id = 'company-error'; el.className = 'text-xs text-red-600 mt-1'; el.textContent = msg;
+    const companyInput = document.getElementById('company');
+    companyInput?.parentElement?.appendChild(el);
+    throw new Error(msg);
+  }
   btn30.disabled = false;
   updateSummary();
 }
