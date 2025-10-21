@@ -106,7 +106,9 @@ function renderIndustryChoices(list){
     div.addEventListener("click", () => {
       wrap.querySelectorAll(".choice").forEach(c=>c.classList.remove("selected"));
       div.classList.add("selected");
+      // store both key and label for reliable lookups
       answers.industry = opt.label;
+      answers.industry_key = opt.key;
       renderIndustryQuestions(opt.key);
       // set suggested keywords and note placeholder for this industry
       try{
@@ -129,6 +131,12 @@ function renderIndustryChoices(list){
       nextBtn.focus();
       updateSummary();
     });
+    // if this industry matches the already-selected industry, mark it as selected
+    if ((answers.industry_key && answers.industry_key === opt.key) || (!answers.industry_key && answers.industry === opt.label)){
+      div.classList.add('selected');
+      // ensure questions and placeholders render for the preselected industry
+      try{ renderIndustryQuestions(opt.key); const kwInput = document.getElementById('keywords'); const meta = (CFG && CFG.industries || []).find(i => i.key === opt.key) || {}; if (kwInput && !kwInput.value && meta.suggested_keywords) kwInput.value = meta.suggested_keywords.slice(0,4).join(', '); }catch(e){}
+    }
     wrap.appendChild(div);
   });
 }

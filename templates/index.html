@@ -88,12 +88,8 @@
       </div>
     </section>
 
-    <aside>
-      <section class="card sticky top-6">
-        <!-- Summary moved into the setup modal; it will appear after finishing the wizard -->
-        <!-- Generate controls moved to setup modal -->
-        </section>
-        <div id="setup-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+    <!-- Sidebar removed: summary and generate controls are shown in the modal after finish -->
+    <div id="setup-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
           <div class="bg-white p-6 rounded shadow-lg w-11/12 max-w-lg relative">
             <button id="modal-x" aria-label="Close setup modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600">&times;</button>
             <h2 class="text-lg font-semibold mb-2">You're all set 🎉</h2>
@@ -112,15 +108,12 @@
             </div>
           </div>
         </div>
-      </aside>
     </main>
-      </section>
 
-      <section class="card mt-6">
-        <h3 class="font-semibold mb-2">Preview</h3>
-        <div id="results" class="space-y-3"></div>
-      </section>
-    </aside>
+    <section class="card mt-6 col-span-1 lg:col-span-2">
+      <h3 class="font-semibold mb-2">Preview</h3>
+      <div id="results" class="space-y-3"></div>
+    </section>
   </main>
 
   <footer class="text-center text-xs text-slate-500 py-6">
