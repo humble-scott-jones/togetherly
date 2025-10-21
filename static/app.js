@@ -293,11 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-btnSample.addEventListener("click", async ()=>{
+if (btnSample) btnSample.addEventListener("click", async ()=>{
   await maybeSaveDefaults();
   renderPosts(await generate(1));
 });
-btn30.addEventListener("click", async ()=>{
+if (btn30) btn30.addEventListener("click", async ()=>{
   await maybeSaveDefaults();
   renderPosts(await generate(30));
 });
