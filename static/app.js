@@ -42,6 +42,60 @@ const btn30 = document.getElementById("btn-30");
 // load optional flags then config
 loadFlags().then(loadConfig).catch(err => { console.error(err); });
 
+// attempt to load saved profile for this session and prefill fields
+async function loadSavedProfile(){
+  try{
+    const res = await fetch('/api/profile');
+    if (!res.ok) return;
+    const p = await res.json();
+    if (!p || !p.id) return;
+    // prefill inputs
+    if (p.company) {
+      const c = document.getElementById('company');
+      if (c && !c.value) c.value = p.company;
+      answers.company = p.company;
+    }
+    if (p.brand_keywords && p.brand_keywords.length){
+      const k = document.getElementById('keywords');
+      if (k && !k.value) k.value = (p.brand_keywords || []).join(', ');
+      answers.brand_keywords = p.brand_keywords || [];
+    }
+    if (p.platforms && p.platforms.length) answers.platforms = p.platforms;
+    if (p.industry) answers.industry = p.industry;
+    if (p.tone) answers.tone = p.tone;
+    updateSummary();
+  }catch(e){/* ignore */}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // load saved profile after config so industry mapping exists
+  loadSavedProfile();
+  // load content metadata
+  (async ()=>{
+    try{
+      const r = await fetch('/api/content');
+      if (!r.ok) return;
+      const j = await r.json();
+      const el = document.getElementById('content-version');
+      if (el) el.textContent = j.version || 'local';
+      window.CONTENT_META = j;
+    }catch(e){/* ignore */}
+  })();
+  // normalize company on blur
+  const c = document.getElementById('company');
+  if (c){
+    c.addEventListener('blur', () => { c.value = c.value.trim().replace(/\s+/g,' ').split(' ').map(w=>w[0]?w[0].toUpperCase()+w.slice(1):'').join(' '); answers.company = c.value; updateSummary(); });
+  }
+});
+
+// client-side company validation: returns error message or empty
+function validateCompany(name){
+  if (!name) return '';
+  if (name.length > 100) return 'Company name is too long (max 100 chars).';
+  if (!/^[\w \-\'\.\&]+$/.test(name)) return 'Company name contains invalid characters.';
+  return '';
+}
+
 function renderIndustryChoices(list){
   const wrap = document.getElementById("industries");
   wrap.innerHTML = "";
@@ -182,6 +236,15 @@ async function saveProfile(){
   // ensure the latest company value is captured
   const companyInput = document.getElementById('company');
   if (companyInput) answers.company = companyInput.value.trim();
+  // validate company before saving
+  const err = validateCompany(answers.company);
+  const existingError = document.getElementById('company-error');
+  if (existingError) existingError.remove();
+  if (err){
+    const el = document.createElement('div'); el.id = 'company-error'; el.className = 'text-xs text-red-600 mt-1'; el.textContent = err;
+    companyInput?.parentElement?.appendChild(el);
+    return; // don't save while invalid
+  }
 
   await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
     method: "POST",

@@ -42,6 +42,7 @@ def init_db():
             brand_keywords TEXT,
             niche_keywords TEXT,
             goals TEXT,
+            company TEXT,
             include_images INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -62,6 +63,11 @@ def init_db():
         db.execute("ALTER TABLE profiles ADD COLUMN goals TEXT;")
     if "industry" not in cols:
         db.execute("ALTER TABLE profiles ADD COLUMN industry TEXT;")
+    if "company" not in cols:
+        try:
+            db.execute("ALTER TABLE profiles ADD COLUMN company TEXT;")
+        except Exception:
+            pass
     db.commit()
 
 @app.before_request
@@ -72,6 +78,27 @@ def ensure_db():
 def index():
     return render_template("index.html")
 
+
+@app.get("/api/content")
+def api_content():
+    # return minimal metadata about content pack (version and flags)
+    cfg_path = os.path.join(os.path.dirname(__file__), "static", "content", "config.json")
+    flags_path = os.path.join(os.path.dirname(__file__), "static", "content", "flags.json")
+    out = {"version": "local"}
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+            out["version"] = cfg.get("version", out["version"])
+    except Exception:
+        pass
+    try:
+        with open(flags_path, "r", encoding="utf-8") as f:
+            flags = json.load(f)
+            out["flags"] = flags
+    except Exception:
+        out["flags"] = {}
+    return jsonify(out)
+
 @app.post("/api/profile")
 def save_profile():
     data = request.get_json(force=True)
@@ -79,6 +106,11 @@ def save_profile():
     session["profile_id"] = profile_id
 
     platforms = data.get("platforms", ["instagram"])
+    company = data.get("company", "")
+    # normalize company: trim and title-case for consistency
+    if isinstance(company, str):
+        company = company.strip()
+        company = company.title() if company else ""
     row = (
         profile_id,
         data.get("industry", "Business"),
@@ -87,12 +119,13 @@ def save_profile():
         json.dumps(data.get("brand_keywords", [])),
         json.dumps(data.get("niche_keywords", [])),
         json.dumps(data.get("goals", [])),
+        company,
         1 if data.get("include_images", True) else 0,
     )
     db = get_db()
     db.execute(
-        """INSERT INTO profiles (id, industry, tone, platforms, brand_keywords, niche_keywords, goals, include_images)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO profiles (id, industry, tone, platforms, brand_keywords, niche_keywords, goals, company, include_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
               industry=excluded.industry,
               tone=excluded.tone,
@@ -100,12 +133,43 @@ def save_profile():
               brand_keywords=excluded.brand_keywords,
               niche_keywords=excluded.niche_keywords,
               goals=excluded.goals,
+              company=excluded.company,
               include_images=excluded.include_images
         """,
         row,
     )
     db.commit()
     return jsonify({"ok": True, "profile_id": profile_id})
+
+
+@app.get("/api/profile")
+def get_profile():
+    profile_id = session.get("profile_id")
+    if not profile_id:
+        return jsonify({})
+    db = get_db()
+    row = db.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()
+    if not row:
+        return jsonify({})
+    # parse stored JSON fields
+    def parse_json_field(val):
+        try:
+            return json.loads(val) if val else []
+        except Exception:
+            return []
+
+    return jsonify({
+        "id": row["id"],
+        "industry": row["industry"],
+        "tone": row["tone"],
+        "platforms": parse_json_field(row["platforms"]),
+        "brand_keywords": parse_json_field(row["brand_keywords"]),
+        "niche_keywords": parse_json_field(row["niche_keywords"]),
+        "goals": parse_json_field(row["goals"]),
+        "company": row["company"] or "",
+        "include_images": bool(row["include_images"]),
+        "created_at": row["created_at"],
+    })
 
 @app.post("/api/generate")
 def api_generate():
@@ -125,6 +189,7 @@ def api_generate():
     niche_keywords = data.get("niche_keywords", [])
     goals = data.get("goals", [])
     include_images = bool(data.get("include_images", True))
+    company = data.get("company", "")
 
     posts = generate_posts(
         days=days,
@@ -135,7 +200,8 @@ def api_generate():
         brand_keywords=brand_keywords,
         include_images=include_images,
         niche_keywords=niche_keywords,
-        goals=goals
+        goals=goals,
+        company=company
     )
     return jsonify({"count": len(posts), "posts": posts, "profile_id": profile_id})
 
