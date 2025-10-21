@@ -27,6 +27,7 @@ let step = 1;
 const answers = {
   industry: "", tone: "", platforms: ["instagram"],
   brand_keywords: [], niche_keywords: [], include_images: true,
+  company: "",
   goals: [], details: {}
 };
 
@@ -178,6 +179,10 @@ nextBtn.addEventListener("click", ()=>{
 
 async function saveProfile(){
   const version = (CFG && CFG.version) ? CFG.version : "local";
+  // ensure the latest company value is captured
+  const companyInput = document.getElementById('company');
+  if (companyInput) answers.company = companyInput.value.trim();
+
   await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
     method: "POST",
     headers: {"Content-Type":"application/json"},
@@ -186,6 +191,14 @@ async function saveProfile(){
   btn30.disabled = false;
   updateSummary();
 }
+
+// wire company input to answers
+document.addEventListener('DOMContentLoaded', () => {
+  const c = document.getElementById('company');
+  if (c){
+    c.addEventListener('input', (e) => { answers.company = e.target.value.trim(); updateSummary(); });
+  }
+});
 
 btnSample.addEventListener("click", async ()=>{
   await maybeSaveDefaults();
@@ -274,7 +287,8 @@ function updateSummary(){
     ["Industry", answers.industry || "—"],
     ["Tone", answers.tone || "—"],
     ["Platforms", answers.platforms.join(", ") || "—"],
-    ["Goals", (answers.goals||[]).join(", ") || "—"]
+    ["Goals", (answers.goals||[]).join(", ") || "—"],
+    ["Company", answers.company || "—"]
   ];
   rows.forEach(([k,v]) => {
     const li = document.createElement("li");
