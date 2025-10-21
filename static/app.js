@@ -267,7 +267,21 @@ async function saveProfile(){
   // show the setup-complete modal if present
   try{
     const modal = document.getElementById('setup-modal') || document.getElementById('modal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal){
+      const ms = document.getElementById('modal-summary');
+      if (ms && window.__setup_summary){
+        ms.innerHTML = '';
+        window.__setup_summary.forEach(([k,v]) => {
+          const li = document.createElement('li');
+          li.className = 'flex justify-between';
+          li.innerHTML = `<span class="font-medium">${k}</span><span>${escapeHtml(v)}</span>`;
+          ms.appendChild(li);
+        });
+      }
+      const mv = document.getElementById('modal-content-version');
+      if (mv) mv.textContent = (window.CONTENT_META && window.CONTENT_META.version) ? window.CONTENT_META.version : (CFG && CFG.version) || 'local';
+      modal.classList.remove('hidden');
+    }
   }catch(e){/* ignore */}
 }
 
@@ -361,19 +375,14 @@ function renderCard(post){
 }
 
 function updateSummary(){
-  summary.innerHTML = "";
-  const rows = [
+  // Keep a small copy of the computed rows in memory; modal will render them when opened
+  window.__setup_summary = [
     ["Industry", answers.industry || "—"],
     ["Tone", answers.tone || "—"],
     ["Platforms", answers.platforms.join(", ") || "—"],
     ["Goals", (answers.goals||[]).join(", ") || "—"],
     ["Company", answers.company || "—"]
   ];
-  rows.forEach(([k,v]) => {
-    const li = document.createElement("li");
-    li.innerHTML = `<span>${k}</span><span>${escapeHtml(v)}</span>`;
-    summary.appendChild(li);
-  });
 }
 
 function groupBy(arr, key){

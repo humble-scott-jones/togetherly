@@ -90,9 +90,7 @@
 
     <aside>
       <section class="card sticky top-6">
-        <h3 class="font-semibold mb-2">Your setup</h3>
-        <ul id="summary" class="summary"></ul>
-        <div class="mt-3 text-xs text-slate-500">Content pack: <span id="content-version">loading…</span></div>
+        <!-- Summary moved into the setup modal; it will appear after finishing the wizard -->
         <div class="mt-4 flex gap-2">
           <button id="btn-sample" class="btn-ghost w-full">Generate 1‑day sample</button>
           <button id="btn-30" class="btn-primary w-full" disabled>Unlock 30‑day plan</button>
@@ -103,6 +101,11 @@
             <button id="modal-x" aria-label="Close setup modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600">&times;</button>
             <h2 class="text-lg font-semibold mb-2">You're all set 🎉</h2>
             <p class="text-sm text-slate-700 mb-4">Your setup is saved. What would you like to do next?</p>
+            <div class="mb-4">
+              <h4 class="text-sm font-medium mb-2">Your setup</h4>
+              <ul id="modal-summary" class="text-sm text-slate-700 space-y-1 mb-2"></ul>
+              <div class="text-xs text-slate-500">Content pack: <span id="modal-content-version">loading…</span></div>
+            </div>
             <div class="flex gap-2">
               <button id="modal-generate-1" class="btn-ghost w-full">Generate 1‑day sample</button>
               <button id="modal-generate-30" class="btn-primary w-full">Generate 30‑day plan</button>
