@@ -21,6 +21,8 @@ async function loadConfig(){
   renderPlatformChoices(CFG.platforms || []);
   showStep(step);
   updateSummary();
+  // now that config is rendered, try to load any saved profile (so industries map correctly)
+  try{ await loadSavedProfile(); }catch(e){/* ignore */}
 }
 
 let step = 1;
@@ -34,7 +36,6 @@ const answers = {
 const prevBtn = document.getElementById("prev");
 const nextBtn = document.getElementById("next");
 const results = document.getElementById("results");
-const summary = document.getElementById("summary");
 const stepsBar = document.getElementById("steps");
 const btnSample = document.getElementById("btn-sample");
 const btn30 = document.getElementById("btn-30");
@@ -68,8 +69,6 @@ async function loadSavedProfile(){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // load saved profile after config so industry mapping exists
-  loadSavedProfile();
   // load content metadata
   (async ()=>{
     try{
@@ -223,8 +222,8 @@ function showStep(n){
   dots.forEach((d,i)=> d.classList.toggle("active", (i+1) <= n));
 }
 
-prevBtn.addEventListener("click", ()=>{ step = Math.max(1, step-1); showStep(step); });
-nextBtn.addEventListener("click", ()=>{
+if (prevBtn) prevBtn.addEventListener("click", ()=>{ step = Math.max(1, step-1); showStep(step); });
+if (nextBtn) nextBtn.addEventListener("click", ()=>{
   if (step === 4){
     const kws = document.getElementById("keywords").value.trim();
     if (kws){
