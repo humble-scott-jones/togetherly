@@ -1,0 +1,291 @@
+let CFG = null;
+let FLAGS = null;
+
+async function loadFlags(){
+  try{
+    const r = await fetch('/static/content/flags.json', { cache: 'no-store' });
+    if (r.ok) FLAGS = await r.json();
+  }catch(e){ /* swallow */ }
+}
+
+async function loadConfig(){
+  const res = await fetch('/static/content/config.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('Could not load config.json');
+  CFG = await res.json();
+  window.CFG = CFG; // handy for debugging
+  window.FLAGS = FLAGS;
+
+  // render using CFG
+  renderIndustryChoices(CFG.industries || []);
+  renderToneChoices(CFG.tones || []);
+  renderPlatformChoices(CFG.platforms || []);
+  showStep(step);
+  updateSummary();
+}
+
+let step = 1;
+const answers = {
+  industry: "", tone: "", platforms: ["instagram"],
+  brand_keywords: [], niche_keywords: [], include_images: true,
+  goals: [], details: {}
+};
+
+const prevBtn = document.getElementById("prev");
+const nextBtn = document.getElementById("next");
+const results = document.getElementById("results");
+const summary = document.getElementById("summary");
+const stepsBar = document.getElementById("steps");
+const btnSample = document.getElementById("btn-sample");
+const btn30 = document.getElementById("btn-30");
+
+// load optional flags then config
+loadFlags().then(loadConfig).catch(err => { console.error(err); });
+
+function renderIndustryChoices(list){
+  const wrap = document.getElementById("industries");
+  wrap.innerHTML = "";
+  list.forEach(opt => {
+    const div = document.createElement("button");
+    div.className = "choice"; div.setAttribute("data-key", opt.key);
+    div.innerHTML = `<div class="emoji">${opt.icon}</div><div class="title">${opt.label}</div>`;
+    div.addEventListener("click", () => {
+      wrap.querySelectorAll(".choice").forEach(c=>c.classList.remove("selected"));
+      div.classList.add("selected");
+      answers.industry = opt.label;
+      renderIndustryQuestions(opt.key);
+      // set suggested keywords and note placeholder for this industry
+      try{
+        const kwInput = document.getElementById('keywords');
+        const noteInput = document.getElementById('note');
+        const meta = (CFG && CFG.industries || []).find(i => i.key === opt.key) || {};
+        if (kwInput && !kwInput.value){
+          if (meta.suggested_keywords) kwInput.placeholder = meta.suggested_keywords.join(', ');
+        }
+        if (noteInput){
+          noteInput.placeholder = meta.note_placeholder || noteInput.placeholder;
+        }
+        // if user hasn't typed keywords, prefill them as a convenience
+        if (kwInput && !kwInput.value && meta.suggested_keywords){
+          // do not auto-save into answers unless user types or proceeds
+          // but for convenience we can pre-populate the visible value (optional)
+          kwInput.value = meta.suggested_keywords.slice(0,4).join(', ');
+        }
+      }catch(e){/* ignore */}
+      nextBtn.focus();
+      updateSummary();
+    });
+    wrap.appendChild(div);
+  });
+}
+
+function renderToneChoices(list){
+  const wrap = document.getElementById("tones");
+  wrap.innerHTML = "";
+  list.forEach(opt => {
+    const div = document.createElement("button");
+    div.className = "choice"; div.setAttribute("data-key", opt.key);
+    div.innerHTML = `<div class="title">${opt.label}</div>`;
+    div.addEventListener("click", () => {
+      wrap.querySelectorAll(".choice").forEach(c=>c.classList.remove("selected"));
+      div.classList.add("selected");
+      answers.tone = opt.key;
+      updateSummary();
+    });
+    wrap.appendChild(div);
+  });
+}
+
+function renderPlatformChoices(list){
+  const wrap = document.getElementById("platforms");
+  wrap.innerHTML = "";
+  list.forEach(opt => {
+    const div = document.createElement("button");
+    div.className = "choice"; div.setAttribute("data-key", opt.key);
+    div.innerHTML = `<div class="title">${opt.label}</div>`;
+    div.addEventListener("click", () => {
+      const k = opt.key;
+      const idx = answers.platforms.indexOf(k);
+      if (idx === -1) { answers.platforms.push(k); div.classList.add("selected"); }
+      else { answers.platforms.splice(idx,1); div.classList.remove("selected"); }
+      if (answers.platforms.length === 0) answers.platforms = ["instagram"];
+      updateSummary();
+    });
+    if (answers.platforms.includes(opt.key)) div.classList.add("selected");
+    wrap.appendChild(div);
+  });
+}
+
+function renderIndustryQuestions(key){
+  const wrap = document.getElementById("industry-questions");
+  wrap.innerHTML = "";
+  answers.goals = [];
+  answers.details = {};
+  const map = (CFG && CFG.questions) || {};
+  (map[key] || []).forEach(q => {
+    if (q.type === "chips"){
+      const box = document.createElement("div");
+      box.innerHTML = `<div class="text-sm font-medium mb-1">${q.label}</div>`;
+      const grid = document.createElement("div");
+      grid.className = "grid grid-cols-2 md:grid-cols-3 gap-2";
+      q.options.forEach(opt => {
+        const chip = document.createElement("button");
+        chip.className = "choice"; chip.textContent = opt;
+        chip.addEventListener("click", () => {
+          const idx = answers.goals.indexOf(opt);
+          if (idx === -1){ answers.goals.push(opt); chip.classList.add("selected"); }
+          else { answers.goals.splice(idx,1); chip.classList.remove("selected"); }
+          updateSummary();
+        });
+        grid.appendChild(chip);
+      });
+      box.appendChild(grid);
+      wrap.appendChild(box);
+    }
+    if (q.type === "text"){
+      const box = document.createElement("div");
+      box.innerHTML = `<label class="block text-sm font-medium mb-1">${q.label}</label>\n      <input class="input" placeholder="${q.placeholder||""}" />`;
+      const input = box.querySelector("input");
+      input.addEventListener("input", () => { answers.details[q.key] = input.value.trim(); updateSummary(); });
+      wrap.appendChild(box);
+    }
+  });
+}
+
+function showStep(n){
+  document.querySelectorAll(".step-panel").forEach(s=>s.classList.add("hidden"));
+  document.querySelector(`.step-panel[data-step="${n}"]`).classList.remove("hidden");
+  prevBtn.disabled = n === 1;
+  nextBtn.textContent = n >= 4 ? "Finish" : "Next";
+  const dots = stepsBar.querySelectorAll(".step");
+  dots.forEach((d,i)=> d.classList.toggle("active", (i+1) <= n));
+}
+
+prevBtn.addEventListener("click", ()=>{ step = Math.max(1, step-1); showStep(step); });
+nextBtn.addEventListener("click", ()=>{
+  if (step === 4){
+    const kws = document.getElementById("keywords").value.trim();
+    if (kws){
+      const parts = kws.split(",").map(s=>s.trim()).filter(Boolean);
+      answers.brand_keywords = parts;
+      answers.niche_keywords = parts;
+    }
+    answers.include_images = document.getElementById("include_images").checked;
+    saveProfile();
+  }
+  step = Math.min(4, step+1);
+  showStep(step);
+});
+
+async function saveProfile(){
+  const version = (CFG && CFG.version) ? CFG.version : "local";
+  await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(answers)
+  });
+  btn30.disabled = false;
+  updateSummary();
+}
+
+btnSample.addEventListener("click", async ()=>{
+  await maybeSaveDefaults();
+  renderPosts(await generate(1));
+});
+btn30.addEventListener("click", async ()=>{
+  await maybeSaveDefaults();
+  renderPosts(await generate(30));
+});
+
+async function maybeSaveDefaults(){
+  if (!answers.industry) answers.industry = "Business";
+  if (!answers.tone) answers.tone = "friendly";
+  if (!answers.platforms || answers.platforms.length === 0) answers.platforms = ["instagram"];
+  await saveProfile();
+}
+
+async function generate(days){
+  const res = await fetch("/api/generate", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ ...answers, days })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function renderPosts(data){
+  const posts = data.posts || [];
+  results.innerHTML = "";
+  if (!posts.length){ results.innerHTML = `<div class="text-sm text-slate-600">No posts yet.</div>`; return; }
+  const byDay = groupBy(posts, "day_index");
+  for (const day of Object.keys(byDay).sort((a,b)=>+a-+b)){
+    const items = byDay[day];
+    const section = document.createElement("section");
+    section.className = "post";
+    section.innerHTML = `<div class="flex items-baseline justify-between mb-2">
+      <h4 class="font-medium">Day ${day} • ${items[0].date}</h4>
+      <span class="text-xs text-slate-500">${items.length} platform(s)</span>
+    </div>`;
+    items.forEach(p => section.appendChild(renderCard(p)));
+    results.appendChild(section);
+  }
+}
+
+function renderCard(post){
+  const card = document.createElement("div");
+  card.className = "border rounded-lg p-3 mt-2";
+  card.innerHTML = `
+    <div class="text-sm font-medium mb-1">${capitalize(post.platform)} • ${post.pillar}</div>
+    ${post.image_url ? `<img class="w-full h-40 object-cover rounded mb-2" src="${post.image_url}" alt="Suggested image" />` : ""}
+    <div class="text-xs text-slate-500 mb-2"><strong>Image prompt:</strong> ${escapeHtml(post.image_prompt)}</div>
+    <pre class="caption text-sm">${escapeHtml(post.caption)}</pre>
+    <div class="mt-3 flex items-center gap-2">
+      <button class="btn-ghost text-xs" data-copy="${escapeAttr(post.caption)}">Copy</button>
+      <button class="btn-ghost text-xs" data-like="1" data-day="${post.day_index}" data-platform="${post.platform}">👍</button>
+      <button class="btn-ghost text-xs" data-like="-1" data-day="${post.day_index}" data-platform="${post.platform}">👎</button>
+    </div>
+  `;
+  card.querySelector("[data-copy]")?.addEventListener("click", async (ev) => {
+    const txt = ev.currentTarget.getAttribute("data-copy") || "";
+    await navigator.clipboard.writeText(txt);
+    ev.currentTarget.textContent = "Copied!";
+    setTimeout(() => (ev.currentTarget.textContent = "Copy"), 1200);
+  });
+  card.querySelectorAll("[data-like]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const rating = +btn.getAttribute("data-like");
+      const post_day = +btn.getAttribute("data-day");
+      const platform = btn.getAttribute("data-platform");
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ rating, post_day, platform })
+      });
+      btn.textContent = rating > 0 ? "👍 Thanks" : "👎 Noted";
+      btn.disabled = true;
+    });
+  });
+  return card;
+}
+
+function updateSummary(){
+  summary.innerHTML = "";
+  const rows = [
+    ["Industry", answers.industry || "—"],
+    ["Tone", answers.tone || "—"],
+    ["Platforms", answers.platforms.join(", ") || "—"],
+    ["Goals", (answers.goals||[]).join(", ") || "—"]
+  ];
+  rows.forEach(([k,v]) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${k}</span><span>${escapeHtml(v)}</span>`;
+    summary.appendChild(li);
+  });
+}
+
+function groupBy(arr, key){
+  return arr.reduce((acc, x) => { (acc[x[key]] ||= []).push(x); return acc; }, {});
+}
+function capitalize(s){ return s ? s[0].toUpperCase() + s.slice(1) : s; }
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function escapeAttr(s){ return (s||"").replace(/"/g, "&quot;"); }
