@@ -264,12 +264,15 @@ function showStep(n){
 if (prevBtn) prevBtn.addEventListener("click", ()=>{ step = Math.max(1, step-1); showStep(step); });
 if (nextBtn) nextBtn.addEventListener("click", ()=>{
   if (step === 4){
-    const kws = document.getElementById("keywords").value.trim();
-    if (kws){
-      const parts = kws.split(",").map(s=>s.trim()).filter(Boolean);
-      answers.brand_keywords = parts;
-      answers.niche_keywords = parts;
+    // collect keywords from selected chips and extra input
+    const extra = document.getElementById('extra-keywords');
+    if (extra && extra.value.trim()){
+      const parts = extra.value.split(',').map(s=>s.trim()).filter(Boolean);
+      answers.brand_keywords = (answers.brand_keywords || []).concat(parts);
+      extra.value = '';
     }
+    // ensure niche_keywords mirrors brand_keywords for now
+    answers.niche_keywords = answers.brand_keywords || [];
     answers.include_images = document.getElementById("include_images").checked;
     saveProfile();
   }
