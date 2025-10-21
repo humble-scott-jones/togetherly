@@ -114,17 +114,27 @@ function renderIndustryChoices(list){
         const kwInput = document.getElementById('keywords');
         const noteInput = document.getElementById('note');
         const meta = (CFG && CFG.industries || []).find(i => i.key === opt.key) || {};
-        if (kwInput && !kwInput.value){
-          if (meta.suggested_keywords) kwInput.placeholder = meta.suggested_keywords.join(', ');
+        // render suggested keywords as chips
+        const sk = document.getElementById('suggested-keywords');
+        if (sk){
+          sk.innerHTML = '';
+          const kws = meta.suggested_keywords || [];
+          kws.forEach(k => {
+            const btn = document.createElement('button');
+            btn.className = 'choice text-sm'; btn.textContent = k;
+            btn.addEventListener('click', () => {
+              toggleKeyword(k);
+              btn.classList.toggle('selected');
+            });
+            sk.appendChild(btn);
+          });
         }
         if (noteInput){
           noteInput.placeholder = meta.note_placeholder || noteInput.placeholder;
         }
-        // if user hasn't typed keywords, prefill them as a convenience
-        if (kwInput && !kwInput.value && meta.suggested_keywords){
-          // do not auto-save into answers unless user types or proceeds
-          // but for convenience we can pre-populate the visible value (optional)
-          kwInput.value = meta.suggested_keywords.slice(0,4).join(', ');
+        // prefill answers.brand_keywords with suggested keywords if empty
+        if ((!answers.brand_keywords || answers.brand_keywords.length === 0) && meta.suggested_keywords){
+          answers.brand_keywords = (meta.suggested_keywords || []).slice(0,4);
         }
       }catch(e){/* ignore */}
       nextBtn.focus();
@@ -139,6 +149,35 @@ function renderIndustryChoices(list){
     wrap.appendChild(div);
   });
 }
+
+// keyword helpers
+function toggleKeyword(k){
+  answers.brand_keywords = answers.brand_keywords || [];
+  const idx = answers.brand_keywords.indexOf(k);
+  if (idx === -1) answers.brand_keywords.push(k);
+  else answers.brand_keywords.splice(idx,1);
+  updateSummary();
+}
+
+// handle extra keywords input (comma-separated or Enter)
+document.addEventListener('DOMContentLoaded', () => {
+  const extra = document.getElementById('extra-keywords');
+  if (extra){
+    extra.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        const parts = extra.value.split(',').map(s=>s.trim()).filter(Boolean);
+        answers.brand_keywords = (answers.brand_keywords||[]).concat(parts);
+        extra.value = '';
+        updateSummary();
+      }
+    });
+    extra.addEventListener('blur', () => {
+      const parts = extra.value.split(',').map(s=>s.trim()).filter(Boolean);
+      if (parts.length){ answers.brand_keywords = (answers.brand_keywords||[]).concat(parts); extra.value = ''; updateSummary(); }
+    });
+  }
+});
 
 function renderToneChoices(list){
   const wrap = document.getElementById("tones");
