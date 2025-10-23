@@ -671,24 +671,62 @@ function renderPosts(data){
 function renderCard(post){
   const card = document.createElement("div");
   card.className = "border rounded-lg p-3 mt-2";
+  // normalize reel object to the legacy view shape so older UI keeps working
+  function normalizeReel(r){
+    if (!r) return null;
+    const out = {};
+    out.hook = r.hook || r.hooks || (Array.isArray(r.ranked_hooks) ? r.ranked_hooks[0] : '');
+    out.script_beats = r.script_beats || r.scriptBeats || r.script || [];
+    // normalize shot_list items to {type, description}
+    out.shot_list = [];
+    const rawShots = r.shot_list || r.shots || [];
+    rawShots.forEach(s => {
+      if (!s) return;
+      if (typeof s === 'string'){
+        out.shot_list.push({ type: s, description: '' });
+      } else if (s.type && s.description){
+        out.shot_list.push({ type: s.type, description: s.description });
+      } else if (s.shot_type){
+        out.shot_list.push({ type: s.shot_type, description: s.notes || '' });
+      } else if (s.type){
+        out.shot_list.push({ type: s.type, description: s.notes || '' });
+      } else {
+        // fallback stringify
+        out.shot_list.push({ type: JSON.stringify(s), description: '' });
+      }
+    });
+    out.on_screen_text = r.on_screen_text || r.onScreenText || r.onScreen || [];
+    // hashtags: support both array and {primary, optional}
+    if (Array.isArray(r.hashtags)) out.hashtags = r.hashtags;
+    else if (r.hashtags && (r.hashtags.primary || r.hashtags.optional)) out.hashtags = [(r.hashtags.primary||[]).join(' '), (r.hashtags.optional||[]).join(' ')].filter(Boolean).join(' ').split(' ').filter(Boolean);
+    else out.hashtags = [];
+    out.cta = r.cta || '';
+    out.thumbnail_prompt = r.thumbnail_prompt || r.thumbnail || r.thumbnailPrompt || '';
+    out.srt_prompt = r.srt_prompt || r.srt || r.srtText || '';
+    out.ranked_hooks = r.ranked_hooks || [];
+    return out;
+  }
+
+  const r = normalizeReel(post.reel);
+
   card.innerHTML = `
     <div class="text-sm font-medium mb-1">${capitalize(post.platform)} • ${post.pillar}</div>
     ${post.image_url ? `<img class="w-full h-40 object-cover rounded mb-2" src="${post.image_url}" alt="Suggested image" />` : ""}
     <div class="text-xs text-slate-500 mb-2"><strong>Image prompt:</strong> ${escapeHtml(post.image_prompt)}</div>
     <pre class="caption text-sm">${escapeHtml(post.caption)}</pre>
-    ${post.reel ? `
+    ${r ? `
       <div class="mt-3 p-3 bg-slate-50 rounded">
         <div class="text-sm font-medium mb-1">Reel plan</div>
-        <div class="text-sm mb-2"><strong>Hook:</strong> ${escapeHtml(post.reel.hook)}</div>
+        <div class="text-sm mb-2"><strong>Hook:</strong> ${escapeHtml(r.hook)}</div>
         <div class="text-sm mb-2"><strong>Script beats:</strong>
-          <ol class="list-decimal ml-5 text-sm text-slate-700">${(post.reel.script_beats||[]).map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ol>
+          <ol class="list-decimal ml-5 text-sm text-slate-700">${(r.script_beats||[]).map(b => `<li>${escapeHtml(b)}</li>`).join('')}</ol>
         </div>
         <div class="text-sm mb-2"><strong>Shot list:</strong>
-          <ul class="list-disc ml-5 text-sm text-slate-700">${(post.reel.shot_list||[]).map(s => `<li>${escapeHtml(s.type + ': ' + s.description)}</li>`).join('')}</ul>
+          <ul class="list-disc ml-5 text-sm text-slate-700">${(r.shot_list||[]).map(s => `<li>${escapeHtml((s.type||'') + (s.description ? ': ' + s.description : ''))}</li>`).join('')}</ul>
         </div>
-        <div class="text-sm mb-2"><strong>On-screen text:</strong> ${escapeHtml((post.reel.on_screen_text||[]).join(' • '))}</div>
-        <div class="text-sm mb-2"><strong>Hashtags:</strong> ${escapeHtml((post.reel.hashtags||[]).join(' '))}</div>
-        <div class="text-sm mb-2"><strong>CTA:</strong> ${escapeHtml(post.reel.cta || '')}</div>
+        <div class="text-sm mb-2"><strong>On-screen text:</strong> ${escapeHtml((r.on_screen_text||[]).join(' • '))}</div>
+        <div class="text-sm mb-2"><strong>Hashtags:</strong> ${escapeHtml((r.hashtags||[]).join(' '))}</div>
+        <div class="text-sm mb-2"><strong>CTA:</strong> ${escapeHtml(r.cta || '')}</div>
         <div class="flex gap-2 mt-2">
           <button class="btn-ghost text-xs" data-copy-reel-script>Copy Reel Script</button>
           <button class="btn-ghost text-xs" data-copy-srt>Copy SRT Prompt</button>
@@ -710,18 +748,30 @@ function renderCard(post){
   });
   // reel copy buttons
   if (post.reel){
+    // use normalized reel if present
+    const reelNode = (function(){
+      // try to find the normalized block we rendered above
+      const container = card.querySelector('.mt-3.p-3');
+      return container ? (post.reel && (post.reel._normalized || null)) : null;
+    })();
+    // fallback to constructing values from post.reel
+    const hook = (post.reel && (post.reel.hook || (post.reel.ranked_hooks && post.reel.ranked_hooks[0]) || ''));
+    const scriptArr = (post.reel && (post.reel.script_beats || post.reel.scriptBeats || post.reel.script || []));
+    const scriptText = `${hook}\n\n${(scriptArr||[]).join('\n')}`;
+    const srtText = (post.reel && (post.reel.srt_prompt || post.reel.srt || ''));
+    const thumbText = (post.reel && (post.reel.thumbnail_prompt || post.reel.thumbnail || ''));
+
     const btnScript = card.querySelector('[data-copy-reel-script]');
     const btnSrt = card.querySelector('[data-copy-srt]');
     const btnThumb = card.querySelector('[data-copy-thumb]');
-    const scriptText = `${post.reel.hook}\n\n${(post.reel.script_beats||[]).join('\n')}`;
     btnScript?.addEventListener('click', async (ev) => {
       try{ await navigator.clipboard.writeText(scriptText); ev.currentTarget.textContent = 'Copied!'; setTimeout(()=>ev.currentTarget.textContent='Copy Reel Script',1200);}catch(e){console.error(e)}
     });
     btnSrt?.addEventListener('click', async (ev) => {
-      try{ await navigator.clipboard.writeText(post.reel.srt_prompt || ''); ev.currentTarget.textContent = 'Copied!'; setTimeout(()=>ev.currentTarget.textContent='Copy SRT Prompt',1200);}catch(e){console.error(e)}
+      try{ await navigator.clipboard.writeText(srtText || ''); ev.currentTarget.textContent = 'Copied!'; setTimeout(()=>ev.currentTarget.textContent='Copy SRT Prompt',1200);}catch(e){console.error(e)}
     });
     btnThumb?.addEventListener('click', async (ev) => {
-      try{ await navigator.clipboard.writeText(post.reel.thumbnail_prompt || ''); ev.currentTarget.textContent = 'Copied!'; setTimeout(()=>ev.currentTarget.textContent='Copy Thumbnail Prompt',1200);}catch(e){console.error(e)}
+      try{ await navigator.clipboard.writeText(thumbText || ''); ev.currentTarget.textContent = 'Copied!'; setTimeout(()=>ev.currentTarget.textContent='Copy Thumbnail Prompt',1200);}catch(e){console.error(e)}
     });
   }
   card.querySelectorAll("[data-like]").forEach(btn => {
