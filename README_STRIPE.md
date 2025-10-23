@@ -1,3 +1,41 @@
+# Togetherly — Stripe local setup (copy/paste commands)
+
+This file contains only the Stripe-related commands in single-line, copy/pasteable blocks.
+
+1) Copy `.env.example` to `.env`
+
+```bash
+cp .env.example .env
+```
+
+2) Install and log in to Stripe CLI (if not already installed)
+
+```bash
+stripe login
+```
+
+3) Start Stripe CLI forwarding to the local webhook endpoint (populate STRIPE_WEBHOOK_SECRET with the printed value)
+
+```bash
+stripe listen --forward-to http://localhost:5001/api/stripe-webhook
+```
+
+4) If you'd like to quickly create a dev user (dev-only endpoint):
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" -d '{"email":"dev@example.com","password":"password","is_paid":true}' http://127.0.0.1:5001/__dev__/create_user
+```
+
+5) Quick test: fetch Stripe publishable key endpoint (verifies server has STRIPE_PUBLISHABLE_KEY set)
+
+```bash
+curl -s http://127.0.0.1:5001/api/stripe-publishable-key | jq .
+```
+
+Notes:
+- After running `stripe listen` the CLI prints a `Webhook signing secret` (whsec_...) — copy that into your `.env` as `STRIPE_WEBHOOK_SECRET`.
+- Ensure `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` are present in `.env` for the subscription flow to work.
+- The client dynamically loads `https://js.stripe.com/v3/` and mounts Stripe Elements to `#card-element` during the paywall flow.
 
 Stripe local development setup
 

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from typing import Optional
 
 PILLARS_BY_DEFAULT = [
     ("Educational", "Share a quick tip that solves a common problem for your audience."),
@@ -66,35 +67,106 @@ def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], com
     return (f"High-quality photo for social post. {company_part}Industry: {industry}. "
             f"Content pillar: {pillar_name}. Style: natural light, minimal background, {kw}.")
 
-def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = ""):
-    # lightweight structured reel plan generated from the post metadata
-    hook = f"Quick tip for {industry}: {pillar_name} — Watch to learn how."
-    # script beats: rough timestamps for a 30s reel
+def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = "", reel_style: Optional[str] = None):
+    # structured reel plan; supports a basic `reel_style` preference when provided
+    style = (reel_style or "Face-camera tips")
+    # pick some hooks based on style
+    hooks_map = {
+        "Face-camera tips": [
+            "3 mistakes costing you customers 👇",
+            "Try this before your next post…",
+            "The 30-second fix for engagement"
+        ],
+        "Property b-roll + captions": [
+            f"Inside this {industry} feature in 30s 🏡",
+            "3 features you’ll miss if you scroll fast…",
+            "Before/After: tiny changes, big feel"
+        ],
+        "Product b-roll + captions": [
+            f"Check out this {pillar_name} in 30s ✨",
+            "3 reasons customers love this…",
+            "Quick tour: what makes it special"
+        ],
+        "Local hotspot montage": [
+            f"Spend a perfect morning in {pillar_name} ☀️",
+            "Hidden gem you’ve gotta try…",
+            "Locals know this trick 🤫"
+        ],
+        "Story + before/after": [
+            "From idea → launch in 30s",
+            "We almost gave up—then this happened",
+            "Tiny change → big result"
+        ],
+        "Workout montage": [
+            "Quick 3-move sequence to level up your routine",
+            "Try this superset for max results",
+            "Short challenge: do 3 rounds"
+        ]
+    }
+
+    chosen_hooks = hooks_map.get(style) or hooks_map.get("Face-camera tips")
+    if not chosen_hooks:
+        chosen_hooks = hooks_map["Face-camera tips"]
+    hook = chosen_hooks[0]
+
+    # script beats: timestamps for a ~30–40s reel
     beats = [
-        "Hook — 0–3s: Short attention-grabber",
-        "Intro — 3–6s: One-sentence context",
-        "Main point 1 — 6–14s",
-        "Main point 2 — 14–24s",
-        "CTA — 24–30s: clear next step"
+        {"t": "0-3s",  "osd": "Hook", "line": hook},
+        {"t": "3-10s", "osd": "Point 1", "line": "Problem your audience feels + quick promise."},
+        {"t": "10-20s","osd": "Point 2", "line": "One actionable tip aligned to your goals."},
+        {"t": "20-30s","osd": "Point 3", "line": "Example or mini story to make it real."},
+        {"t": "30-40s","osd": "CTA", "line": "Comment a question / DM for help / Check link in bio."}
     ]
-    shot_list = [
-        {"type": "A-roll", "description": "Talking head, close-up"},
-        {"type": "B-roll", "description": f"Cutaway showing {pillar_name.lower()} or product shots"}
-    ]
-    on_screen = [f"{pillar_name}", "Tip", "CTA"]
-    hashtags = default_hashtags(industry, brand_keywords)[:8]
-    cta = "Learn more / Book now"
-    srt_prompt = f"Generate SRT subtitles for a 30s reel about {pillar_name} in {industry}. Tone: {tone}."
-    thumbnail_prompt = f"Thumbnail idea: bold text '{pillar_name}' over image of {industry} with high contrast. Company: {company}."
+
+    shot_map = {
+        "Face-camera tips": [
+            "Front-facing A-roll, eye-level, natural light",
+            "Cutaways: screen recording, product close-up",
+            "End with CTA text overlay"
+        ],
+        "Property b-roll + captions": [
+            "Exterior wide → entry → kitchen → feature highlight",
+            "Quick pans, 0.8x speed ramp between rooms",
+            "On-screen captions for each highlight"
+        ],
+        "Product b-roll + captions": [
+            "Wide shot → detail close-ups → demo",
+            "Match edits to beat; short clips per feature",
+            "Add caption overlays for key specs"
+        ],
+        "Local hotspot montage": [
+            "Sign → interior → hero item → smiling staff → crowd",
+            "Match cuts to beat; 0.5s–1.0s per clip",
+            "End with text: name + location"
+        ],
+        "Story + before/after": [
+            "Talking head intro",
+            "B-roll: before clip/photos",
+            "After reveal with text overlay"
+        ],
+        "Workout montage": [
+            "Demonstration A-roll",
+            "Close-ups on form",
+            "Speed ramps and finishing CTA"
+        ]
+    }
+
+    shot_list = shot_map.get(style, ["Talking head + a few cutaways, end with CTA"])
+
+    hashtags = default_hashtags(industry, brand_keywords)
+    thumb_prompt = f"Portrait thumbnail: {industry} • {style}. Clean bold text, high contrast, subject centered."
+
     return {
+        "style": style,
         "hook": hook,
-        "script_beats": beats,
+        "beats": beats,
+        "script_beats": [b.get('line') if isinstance(b, dict) else b for b in beats],
         "shot_list": shot_list,
-        "on_screen_text": on_screen,
+        "on_screen_text": [b.get('osd') for b in beats],
         "hashtags": hashtags,
-        "cta": cta,
-        "srt_prompt": srt_prompt,
-        "thumbnail_prompt": thumbnail_prompt,
+        "cta": "Comment / DM / Link in bio",
+        "thumbnail_prompt": thumb_prompt,
+        "srt_prompt": f"Generate SRT subtitles for a ~30-40s reel about {pillar_name} in {industry}. Tone: {tone}."
     }
 
 def unsplash_link(industry: str, pillar_name: str):
@@ -108,7 +180,7 @@ def rolling_pillars():
 
 def generate_posts(days: int, start_day, industry: str, tone: str,
                    platforms: list[str], brand_keywords: list[str],
-                   include_images: bool, niche_keywords: list[str], goals: list[str], company: str = ""):
+                   include_images: bool, niche_keywords: list[str], goals: list[str], company: str = "", details: Optional[dict] = None):
     posts = []
     pillar_stream = rolling_pillars()
     hashtags = default_hashtags(industry, niche_keywords)
@@ -131,6 +203,15 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
             iprompt = image_prompt(industry, pillar_name, brand_keywords, company)
             img_url = unsplash_link(industry, pillar_name) if include_images else None
 
+            reel_obj = None
+            if p.lower() in ["instagram", "tiktok", "short_video"]:
+                reel_style = None
+                try:
+                    reel_style = (details or {}).get('reel_style')
+                except Exception:
+                    reel_style = None
+                reel_obj = make_reel_plan(industry, pillar_name, brand_keywords, tone, company, reel_style)
+
             posts.append({
                 "date": day.isoformat(),
                 "day_index": i + 1,
@@ -139,7 +220,6 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
                 "caption": caption,
                 "image_prompt": iprompt,
                 "image_url": img_url,
-                # include a reel plan for platforms that support short video
-                "reel": (make_reel_plan(industry, pillar_name, brand_keywords, tone, company) if p.lower() in ["instagram","tiktok"] else None)
+                "reel": reel_obj
             })
     return posts

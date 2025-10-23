@@ -963,6 +963,7 @@ def api_generate():
     brand_keywords = data.get("brand_keywords", [])
     niche_keywords = data.get("niche_keywords", [])
     goals = data.get("goals", [])
+    details = data.get("details", {})
     include_images = bool(data.get("include_images", True))
     company = data.get("company", "")
 
@@ -988,6 +989,7 @@ def api_generate():
         include_images=include_images,
         niche_keywords=niche_keywords,
         goals=goals,
+        details=details,
         company=company
     )
     return jsonify({"count": len(posts), "posts": posts, "profile_id": profile_id})
