@@ -63,6 +63,8 @@ async function loadSavedProfile(){
     if (p.platforms && p.platforms.length) answers.platforms = p.platforms;
     if (p.industry) answers.industry = p.industry;
     if (p.tone) answers.tone = p.tone;
+    if (p.goals && p.goals.length) answers.goals = p.goals;
+    if (p.details) answers.details = p.details || {};
     updateSummary();
   }catch(e){/* ignore */}
 }
@@ -406,8 +408,7 @@ function renderPlatformChoices(list){
 function renderIndustryQuestions(key){
   const wrap = document.getElementById("industry-questions");
   wrap.innerHTML = "";
-  answers.goals = [];
-  answers.details = {};
+  // preserve existing answers.goals and answers.details when switching industries
   const map = (CFG && CFG.questions) || {};
   (map[key] || []).forEach(q => {
     if (q.type === "chips"){
@@ -418,10 +419,35 @@ function renderIndustryQuestions(key){
       q.options.forEach(opt => {
         const chip = document.createElement("button");
         chip.className = "choice"; chip.textContent = opt;
+        // initialize selected state
+        try{
+          if (q.key === 'goals'){
+            if ((answers.goals || []).indexOf(opt) !== -1) chip.classList.add('selected');
+          } else {
+            if ((answers.details && answers.details[q.key]) === opt) chip.classList.add('selected');
+          }
+        }catch(e){}
         chip.addEventListener("click", () => {
-          const idx = answers.goals.indexOf(opt);
-          if (idx === -1){ answers.goals.push(opt); chip.classList.add("selected"); }
-          else { answers.goals.splice(idx,1); chip.classList.remove("selected"); }
+          // if this is the 'goals' question, allow multi-select
+          if (q.key === 'goals'){
+            answers.goals = answers.goals || [];
+            const idx = answers.goals.indexOf(opt);
+            if (idx === -1){ answers.goals.push(opt); chip.classList.add("selected"); }
+            else { answers.goals.splice(idx,1); chip.classList.remove("selected"); }
+          } else {
+            // single-select behavior stored under answers.details[q.key]
+            answers.details = answers.details || {};
+            if (answers.details[q.key] === opt){
+              // toggle off
+              delete answers.details[q.key];
+              chip.classList.remove('selected');
+            } else {
+              // deselect other chips in this grid
+              Array.from(grid.children).forEach(c => c.classList.remove('selected'));
+              answers.details[q.key] = opt;
+              chip.classList.add('selected');
+            }
+          }
           updateSummary();
         });
         grid.appendChild(chip);
@@ -433,7 +459,9 @@ function renderIndustryQuestions(key){
       const box = document.createElement("div");
       box.innerHTML = `<label class="block text-sm font-medium mb-1">${q.label}</label>\n      <input class="input" placeholder="${q.placeholder||""}" />`;
       const input = box.querySelector("input");
-      input.addEventListener("input", () => { answers.details[q.key] = input.value.trim(); updateSummary(); });
+      // prefill if previously saved
+      try{ if (answers.details && answers.details[q.key]) input.value = answers.details[q.key]; }catch(e){}
+      input.addEventListener("input", () => { answers.details = answers.details || {}; answers.details[q.key] = input.value.trim(); updateSummary(); });
       wrap.appendChild(box);
     }
   });
@@ -785,6 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const gen1Btn = document.getElementById('modal-generate-1');
   const gen30Btn = document.getElementById('modal-generate-30');
   const gen7Btn = document.getElementById('modal-generate-7');
+  const genReelsBtn = document.getElementById('modal-generate-reels');
 
   // Close handlers: hide inline or modal depending on what exists
   closeBtn?.addEventListener('click', () => { if (inline) inline.classList.add('hidden'); if (modal) modal.classList.add('hidden'); });
@@ -798,6 +827,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await generate(1);
       renderPosts(data);
     }catch(err){ console.error('generate(1) failed', err); }
+  });
+  genReelsBtn?.addEventListener('click', async () => {
+    // generate a short reels-only sample (5 reels)
+    if (inline) inline.classList.add('hidden');
+    if (modal) modal.classList.add('hidden');
+    try{
+      clearFormError();
+      await maybeSaveDefaults();
+      // call generate endpoint requesting only short_video platform
+      const res = await fetch('/api/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...answers, days: 5, platforms: ['short_video'] }) });
+      if (!res.ok){ const j = await res.json().catch(()=>null); throw new Error((j && j.error) || ('HTTP ' + res.status)); }
+      const data = await res.json();
+      renderPosts(data);
+    }catch(err){ console.error('generate(reels) failed', err); }
   });
   gen7Btn?.addEventListener('click', async () => {
     // gate to paid users if the flag is set

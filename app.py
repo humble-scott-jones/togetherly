@@ -113,6 +113,11 @@ def init_db():
             db.execute("ALTER TABLE profiles ADD COLUMN company TEXT;")
         except Exception:
             pass
+    if "details" not in cols:
+        try:
+            db.execute("ALTER TABLE profiles ADD COLUMN details TEXT;")
+        except Exception:
+            pass
     # ensure users table has is_admin column (backfill for older DBs)
     try:
         ucols = [r[1] for r in db.execute("PRAGMA table_info(users)").fetchall()]
@@ -886,6 +891,7 @@ def save_profile():
         import re
         if not re.match(r"^[\w \-\'\.\&]+$", company):
             return jsonify({"ok": False, "error": "Company name contains invalid characters.", "errors": {"company": "Company name contains invalid characters."}}), 400
+    details = data.get("details", {}) or {}
     row = (
         profile_id,
         data.get("industry", "Business"),
@@ -894,13 +900,14 @@ def save_profile():
         json.dumps(data.get("brand_keywords", [])),
         json.dumps(data.get("niche_keywords", [])),
         json.dumps(data.get("goals", [])),
+        json.dumps(details),
         company,
         1 if data.get("include_images", True) else 0,
     )
     db = get_db()
     db.execute(
-        """INSERT INTO profiles (id, industry, tone, platforms, brand_keywords, niche_keywords, goals, company, include_images)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO profiles (id, industry, tone, platforms, brand_keywords, niche_keywords, goals, details, company, include_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
               industry=excluded.industry,
               tone=excluded.tone,
@@ -908,6 +915,7 @@ def save_profile():
               brand_keywords=excluded.brand_keywords,
               niche_keywords=excluded.niche_keywords,
               goals=excluded.goals,
+              details=excluded.details,
               company=excluded.company,
               include_images=excluded.include_images
         """,
@@ -927,20 +935,23 @@ def get_profile():
     if not row:
         return jsonify({})
     # parse stored JSON fields
-    def parse_json_field(val):
+    def parse_json_field(val, default=None):
         try:
-            return json.loads(val) if val else []
+            if not val:
+                return [] if default is None else default
+            return json.loads(val)
         except Exception:
-            return []
+            return [] if default is None else default
 
     return jsonify({
         "id": row["id"],
         "industry": row["industry"],
         "tone": row["tone"],
-        "platforms": parse_json_field(row["platforms"]),
-        "brand_keywords": parse_json_field(row["brand_keywords"]),
-        "niche_keywords": parse_json_field(row["niche_keywords"]),
-        "goals": parse_json_field(row["goals"]),
+        "platforms": parse_json_field(row["platforms"], []),
+        "brand_keywords": parse_json_field(row["brand_keywords"], []),
+        "niche_keywords": parse_json_field(row["niche_keywords"], []),
+        "goals": parse_json_field(row["goals"], []),
+        "details": parse_json_field(row.get("details"), {}),
         "company": row["company"] or "",
         "include_images": bool(row["include_images"]),
         "created_at": row["created_at"],
