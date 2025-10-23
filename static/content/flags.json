@@ -1,5 +1,1 @@
-{
-  "showStripePaywall": false,
-  "enableAI": false,
-  "betaIndustries": ["photography"]
-}
+{"gate7DayToPaid": true}

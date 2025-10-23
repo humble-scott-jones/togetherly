@@ -34,7 +34,7 @@ def to_sentence_case(s: str):
     return s[0].upper() + s[1:]
 
 def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
-                 platform: str, brand_keywords: list[str], hashtags: list[str], goals: list[str]):
+                 platform: str, brand_keywords: list[str], hashtags: list[str], goals: list[str], company: str = ""):
     tone_blurb = {
         "friendly": "Warm, encouraging, and conversational.",
         "professional": "Clear, confident, and value-focused.",
@@ -46,9 +46,11 @@ def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
     brand_line = f" ({', '.join(brand_keywords)})" if brand_keywords else ""
     goal_line = f"Focus: {', '.join(goals)}." if goals else ""
 
+    company_line = f"From {company}." if company else ""
     body = (
         f"{pillar_name} • {industry}{brand_line}\n"
         f"{pillar_hint}\n\n"
+        f"{company_line}\n"
         f"{goal_line}\n"
         f"Tone: {tone_blurb}\n"
         f"Platform tip: {platform_hint}\n\n"
@@ -58,10 +60,42 @@ def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
     tags = " ".join(hashtags)
     return f"{body}\n\n{tags}"
 
-def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str]):
+def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], company: str = ""):
     kw = ", ".join(brand_keywords) if brand_keywords else "on-brand colors"
-    return (f"High-quality photo for social post. Industry: {industry}. "
+    company_part = f"Company: {company}. " if company else ""
+    return (f"High-quality photo for social post. {company_part}Industry: {industry}. "
             f"Content pillar: {pillar_name}. Style: natural light, minimal background, {kw}.")
+
+def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = ""):
+    # lightweight structured reel plan generated from the post metadata
+    hook = f"Quick tip for {industry}: {pillar_name} — Watch to learn how."
+    # script beats: rough timestamps for a 30s reel
+    beats = [
+        "Hook — 0–3s: Short attention-grabber",
+        "Intro — 3–6s: One-sentence context",
+        "Main point 1 — 6–14s",
+        "Main point 2 — 14–24s",
+        "CTA — 24–30s: clear next step"
+    ]
+    shot_list = [
+        {"type": "A-roll", "description": "Talking head, close-up"},
+        {"type": "B-roll", "description": f"Cutaway showing {pillar_name.lower()} or product shots"}
+    ]
+    on_screen = [f"{pillar_name}", "Tip", "CTA"]
+    hashtags = default_hashtags(industry, brand_keywords)[:8]
+    cta = "Learn more / Book now"
+    srt_prompt = f"Generate SRT subtitles for a 30s reel about {pillar_name} in {industry}. Tone: {tone}."
+    thumbnail_prompt = f"Thumbnail idea: bold text '{pillar_name}' over image of {industry} with high contrast. Company: {company}."
+    return {
+        "hook": hook,
+        "script_beats": beats,
+        "shot_list": shot_list,
+        "on_screen_text": on_screen,
+        "hashtags": hashtags,
+        "cta": cta,
+        "srt_prompt": srt_prompt,
+        "thumbnail_prompt": thumbnail_prompt,
+    }
 
 def unsplash_link(industry: str, pillar_name: str):
     q = f"{industry} {pillar_name}".replace(" ", "+")
@@ -74,7 +108,7 @@ def rolling_pillars():
 
 def generate_posts(days: int, start_day, industry: str, tone: str,
                    platforms: list[str], brand_keywords: list[str],
-                   include_images: bool, niche_keywords: list[str], goals: list[str]):
+                   include_images: bool, niche_keywords: list[str], goals: list[str], company: str = ""):
     posts = []
     pillar_stream = rolling_pillars()
     hashtags = default_hashtags(industry, niche_keywords)
@@ -91,9 +125,10 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
                 platform=p,
                 brand_keywords=brand_keywords,
                 hashtags=hashtags,
-                goals=goals
+                goals=goals,
+                company=company
             )
-            iprompt = image_prompt(industry, pillar_name, brand_keywords)
+            iprompt = image_prompt(industry, pillar_name, brand_keywords, company)
             img_url = unsplash_link(industry, pillar_name) if include_images else None
 
             posts.append({
@@ -103,6 +138,8 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
                 "pillar": pillar_name,
                 "caption": caption,
                 "image_prompt": iprompt,
-                "image_url": img_url
+                "image_url": img_url,
+                # include a reel plan for platforms that support short video
+                "reel": (make_reel_plan(industry, pillar_name, brand_keywords, tone, company) if p.lower() in ["instagram","tiktok"] else None)
             })
     return posts
