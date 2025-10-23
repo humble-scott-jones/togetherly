@@ -7,10 +7,15 @@ import time
 from flask_cors import CORS
 from generator import generate_posts
 from werkzeug.security import generate_password_hash, check_password_hash
+from typing import TYPE_CHECKING
 
 # optional stripe import (only used if STRIPE_SECRET_KEY is set)
 try:
-    import stripe
+    if TYPE_CHECKING:
+        # ensure type-checkers know about stripe without requiring it at runtime
+        import stripe  # type: ignore
+    else:
+        import stripe
 except Exception:
     stripe = None
 
@@ -292,7 +297,7 @@ def api_content():
     # return minimal metadata about content pack (version and flags)
     cfg_path = os.path.join(os.path.dirname(__file__), "static", "content", "config.json")
     flags_path = os.path.join(os.path.dirname(__file__), "static", "content", "flags.json")
-    out = {"version": "local"}
+    out: dict = {"version": "local", "flags": {}}
     try:
         with open(cfg_path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
@@ -770,7 +775,8 @@ def dev_list_routes():
         return jsonify({'ok': False, 'error': 'Not allowed'}), 403
     rules = []
     for rule in app.url_map.iter_rules():
-        rules.append({'rule': str(rule), 'endpoint': rule.endpoint, 'methods': sorted(list(rule.methods))})
+        methods = list(rule.methods) if rule.methods else []
+        rules.append({'rule': str(rule), 'endpoint': rule.endpoint, 'methods': sorted(methods)})
     return jsonify({'ok': True, 'routes': rules})
 
 
