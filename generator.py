@@ -67,9 +67,64 @@ def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], com
     return (f"High-quality photo for social post. {company_part}Industry: {industry}. "
             f"Content pillar: {pillar_name}. Style: natural light, minimal background, {kw}.")
 
-def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = "", reel_style: Optional[str] = None):
-    # structured reel plan; supports a basic `reel_style` preference when provided
+def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = "", reel_style: Optional[str] = None, goals: Optional[list[str]] = None, niche_keywords: Optional[list[str]] = None):
+    # structured reel plan; tailor suggestions by industry and an optional `reel_style` preference
     style = (reel_style or "Face-camera tips")
+    goals = goals or []
+    niche_keywords = niche_keywords or []
+
+    # industry-specific modifiers to make outputs more relevant to the professional
+    industry_key = (industry or "").lower()
+    industry_mods = {
+        "realtor": {
+            "cta": "Schedule a showing or DM for details.",
+            "thumb_extra": "Show a room or exterior with bold feature text",
+            "hook_pfx": "House tip:"
+        },
+        "restaurant": {
+            "cta": "Reserve a table or check the menu link.",
+            "thumb_extra": "Close-up of dish with appetizing colors",
+            "hook_pfx": "Chef's secret:"
+        },
+        "retail": {
+            "cta": "Shop now or visit us in-store.",
+            "thumb_extra": "Product shot with clear price/text",
+            "hook_pfx": "New in:"
+        },
+        "fitness": {
+            "cta": "Try this move & tag us in your video.",
+            "thumb_extra": "Action shot with energetic typography",
+            "hook_pfx": "Quick workout:"
+        },
+        "artisan": {
+            "cta": "Shop the collection or visit the studio.",
+            "thumb_extra": "Close-up of hands at work",
+            "hook_pfx": "Behind the craft:"
+        },
+        "coach": {
+            "cta": "Book a consult or grab the free worksheet.",
+            "thumb_extra": "Headshot with clear value statement",
+            "hook_pfx": "Quick tip:"
+        },
+        "nonprofit": {
+            "cta": "Learn how to help or donate today.",
+            "thumb_extra": "Impact photo with short stat overlay",
+            "hook_pfx": "Impact story:"
+        },
+        "home_services": {
+            "cta": "Book an estimate or ask for a quote.",
+            "thumb_extra": "Before/after split with clear label",
+            "hook_pfx": "Before & after:"
+        },
+        "healthcare": {
+            "cta": "Book a consult or learn more on our site.",
+            "thumb_extra": "Friendly staff or clinic photo with clear text",
+            "hook_pfx": "Health tip:"
+        }
+    }
+
+    mods = industry_mods.get(industry_key, {"cta": "Comment / DM / Link in bio", "thumb_extra": "Clean bold text, subject centered", "hook_pfx": "Quick tip:"})
+
     # pick some hooks based on style
     hooks_map = {
         "Face-camera tips": [
@@ -104,20 +159,32 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
         ]
     }
 
+    # allow fallback to a style-agnostic set if exact match not found
     chosen_hooks = hooks_map.get(style) or hooks_map.get("Face-camera tips")
     if not chosen_hooks:
         chosen_hooks = hooks_map["Face-camera tips"]
-    hook = chosen_hooks[0]
+    # combine industry prefix with the chosen hook to make it specific
+    raw_hook = chosen_hooks[0]
+    hook = f"{mods.get('hook_pfx','Quick tip:')} {raw_hook}"
 
     # script beats: timestamps for a ~30–40s reel
+    # Compose script beats and customize lines using goals/company/context
+    problem_line = "A common pain point your audience has and why it matters." 
+    if goals:
+        problem_line = f"Pain point related to: {', '.join(goals[:2])}."
+    tip_line = "One actionable tip the viewer can try right away."
+    example_line = f"Quick example or result — mention {company} if relevant." if company else "Quick example or result to make it real."
+    cta_line = mods.get('cta')
+
     beats = [
         {"t": "0-3s",  "osd": "Hook", "line": hook},
-        {"t": "3-10s", "osd": "Point 1", "line": "Problem your audience feels + quick promise."},
-        {"t": "10-20s","osd": "Point 2", "line": "One actionable tip aligned to your goals."},
-        {"t": "20-30s","osd": "Point 3", "line": "Example or mini story to make it real."},
-        {"t": "30-40s","osd": "CTA", "line": "Comment a question / DM for help / Check link in bio."}
+        {"t": "3-10s", "osd": "Problem", "line": problem_line},
+        {"t": "10-20s","osd": "Tip", "line": tip_line},
+        {"t": "20-30s","osd": "Example", "line": example_line},
+        {"t": "30-40s","osd": "CTA", "line": cta_line}
     ]
 
+    # combine style-based shot guidance with industry-specific suggestions
     shot_map = {
         "Face-camera tips": [
             "Front-facing A-roll, eye-level, natural light",
@@ -151,10 +218,27 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
         ]
     }
 
-    shot_list = shot_map.get(style, ["Talking head + a few cutaways, end with CTA"])
+    style_shots = shot_map.get(style, ["Talking head + a few cutaways, end with CTA"])
+    # add industry-specific shot hints to the start of the list where helpful
+    industry_shots = []
+    if industry_key == 'realtor':
+        industry_shots = ["Start with exterior wide, show hero room, highlight value props"]
+    elif industry_key == 'restaurant':
+        industry_shots = ["Close-up of dish, plating, hands prepping"]
+    elif industry_key == 'fitness':
+        industry_shots = ["Full-body demo shot, side view for form"]
+    elif industry_key == 'artisan':
+        industry_shots = ["Hands-on process close-ups, product reveal"]
 
-    hashtags = default_hashtags(industry, brand_keywords)
-    thumb_prompt = f"Portrait thumbnail: {industry} • {style}. Clean bold text, high contrast, subject centered."
+    shot_list = industry_shots + style_shots
+
+    hashtags = default_hashtags(industry, brand_keywords + niche_keywords)
+    thumb_prompt = f"Portrait thumbnail: {industry} • {style}. {mods.get('thumb_extra')}"
+
+    # SRT prompt should include style, company and the beats for better auto-subtitle generation
+    srt_context = f"Generate SRT subtitles for a 30-40s {style} reel about {pillar_name} in {industry}."
+    if company: srt_context += f" Mention company: {company}."
+    if goals: srt_context += f" Focus: {', '.join(goals[:3])}."
 
     return {
         "style": style,
@@ -164,9 +248,9 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
         "shot_list": shot_list,
         "on_screen_text": [b.get('osd') for b in beats],
         "hashtags": hashtags,
-        "cta": "Comment / DM / Link in bio",
+        "cta": cta_line,
         "thumbnail_prompt": thumb_prompt,
-        "srt_prompt": f"Generate SRT subtitles for a ~30-40s reel about {pillar_name} in {industry}. Tone: {tone}."
+        "srt_prompt": srt_context
     }
 
 def unsplash_link(industry: str, pillar_name: str):
@@ -210,7 +294,7 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
                     reel_style = (details or {}).get('reel_style')
                 except Exception:
                     reel_style = None
-                reel_obj = make_reel_plan(industry, pillar_name, brand_keywords, tone, company, reel_style)
+                reel_obj = make_reel_plan(industry, pillar_name, brand_keywords, tone, company, reel_style, goals=goals, niche_keywords=niche_keywords)
 
             posts.append({
                 "date": day.isoformat(),
