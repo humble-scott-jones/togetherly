@@ -23,40 +23,51 @@
     {"key": "facebook", "label": "Facebook"},
     {"key": "linkedin", "label": "LinkedIn"},
     {"key": "twitter", "label": "X / Twitter"},
-    {"key": "tiktok", "label": "TikTok"}
+    {"key": "tiktok", "label": "TikTok"},
+    {"key": "short_video", "label": "Short Video (Reels/TikTok/Shorts)"}
   ],
   "questions": {
     "realtor": [
       {"type":"chips","key":"goals","label":"What do you want to focus on?","options":["New listings","Local lifestyle","Market tips","Testimonials"]},
-      {"type":"text","key":"area","label":"Primary area (optional)","placeholder":"e.g., Johns Island"}
+      {"type":"text","key":"area","label":"Primary area (optional)","placeholder":"e.g., Johns Island"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Property b-roll + captions","Local hotspot montage","Story + before/after"]}
     ],
     "restaurant": [
       {"type":"chips","key":"goals","label":"What do you want to highlight?","options":["Menu items","Seasonal specials","Events","Team"]},
-      {"type":"text","key":"cuisine","label":"Cuisine (optional)","placeholder":"e.g., Southern coastal"}
+      {"type":"text","key":"cuisine","label":"Cuisine (optional)","placeholder":"e.g., Southern coastal"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Product b-roll + captions","Local hotspot montage","Story + before/after"]}
     ],
     "retail": [
-      {"type":"chips","key":"goals","label":"Content emphasis","options":["New arrivals","How-to style","Promotions","Community"]}
+      {"type":"chips","key":"goals","label":"Content emphasis","options":["New arrivals","How-to style","Promotions","Community"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Product b-roll + captions","Local hotspot montage","Story + before/after"]}
     ],
     "fitness": [
-      {"type":"chips","key":"goals","label":"What fits best?","options":["Motivation","Education","Member stories","Promotions"]}
+      {"type":"chips","key":"goals","label":"What fits best?","options":["Motivation","Education","Member stories","Promotions"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Workout montage","Local hotspot montage","Story + before/after"]}
     ],
     "artisan": [
-      {"type":"chips","key":"goals","label":"What should we lean into?","options":["Process","Products","Story","Events"]}
+      {"type":"chips","key":"goals","label":"What should we lean into?","options":["Process","Products","Story","Events"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Process b-roll + captions","Local hotspot montage","Story + before/after"]}
     ],
     "coach": [
-      {"type":"chips","key":"goals","label":"Primary focus","options":["Tips","Client wins","Offers","Mindset"]}
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Tips","Client wins","Offers","Mindset"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Story + before/after","Local hotspot montage","Quick demo"]}
     ],
     "nonprofit": [
-      {"type":"chips","key":"goals","label":"Primary focus","options":["Impact","Events","Volunteers","Donations"]}
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Impact","Events","Volunteers","Donations"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Story + before/after","Impact montage","Local hotspot montage","Volunteer spotlight"]}
     ],
     "home_services": [
-      {"type":"chips","key":"goals","label":"Primary focus","options":["Before/after","Tips","Seasonal reminders","Reviews"]}
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Before/after","Tips","Seasonal reminders","Reviews"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Before/after","Face-camera tips","How-to demo","Story + before/after"]}
     ],
     "healthcare": [
-      {"type":"chips","key":"goals","label":"Primary focus","options":["Education","Team","Patient resources","Community"]}
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Education","Team","Patient resources","Community"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Education tips","Team spotlight","Patient story","Quick explainer"]}
     ],
     "other": [
-      {"type":"text","key":"describe","label":"Tell us a sentence about your work","placeholder":"One line about what you do"}
+      {"type":"text","key":"describe","label":"Tell us a sentence about your work","placeholder":"One line about what you do"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Local hotspot montage","Story + before/after","Process b-roll + captions"]}
     ]
   }
 }
