@@ -951,7 +951,7 @@ def get_profile():
         "brand_keywords": parse_json_field(row["brand_keywords"], []),
         "niche_keywords": parse_json_field(row["niche_keywords"], []),
         "goals": parse_json_field(row["goals"], []),
-        "details": parse_json_field(row.get("details"), {}),
+    "details": parse_json_field(row["details"], {}),
         "company": row["company"] or "",
         "include_images": bool(row["include_images"]),
         "created_at": row["created_at"],
