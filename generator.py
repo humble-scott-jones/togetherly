@@ -67,11 +67,12 @@ def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], com
     return (f"High-quality photo for social post. {company_part}Industry: {industry}. "
             f"Content pillar: {pillar_name}. Style: natural light, minimal background, {kw}.")
 
-def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = "", reel_style: Optional[str] = None, goals: Optional[list[str]] = None, niche_keywords: Optional[list[str]] = None):
+def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], tone: str, company: str = "", reel_style: Optional[str] = None, goals: Optional[list[str]] = None, niche_keywords: Optional[list[str]] = None, length_seconds: int = 30, production_tier: str = "solo"):
     # structured reel plan; tailor suggestions by industry and an optional `reel_style` preference
     style = (reel_style or "Face-camera tips")
     goals = goals or []
     niche_keywords = niche_keywords or []
+    length_seconds = int(length_seconds or 30)
 
     # industry-specific modifiers to make outputs more relevant to the professional
     industry_key = (industry or "").lower()
@@ -163,13 +164,28 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
     chosen_hooks = hooks_map.get(style) or hooks_map.get("Face-camera tips")
     if not chosen_hooks:
         chosen_hooks = hooks_map["Face-camera tips"]
-    # combine industry prefix with the chosen hook to make it specific
-    raw_hook = chosen_hooks[0]
-    hook = f"{mods.get('hook_pfx','Quick tip:')} {raw_hook}"
+    # produce ranked hooks (industry-prefixed variants) and alternates
+    ranked_hooks = [f"{mods.get('hook_pfx','Quick tip:')} {h}" for h in chosen_hooks]
+    # add short alternates
+    for h in chosen_hooks[:2]:
+        short = h.replace('…', '').split(' - ')[0].strip()
+        if short and short not in ranked_hooks:
+            ranked_hooks.append(short)
+    hook = ranked_hooks[0]
 
-    # script beats: timestamps for a ~30–40s reel
-    # Compose script beats and customize lines using goals/company/context
-    problem_line = "A common pain point your audience has and why it matters." 
+    # script beats: timestamps for the requested length_seconds
+    total = max(10, length_seconds)
+    # percentage allocation for Hook, Problem, Tip, Example, CTA
+    slots = [0.12, 0.25, 0.35, 0.18, 0.10]
+    bounds = []
+    acc = 0.0
+    for pct in slots:
+        start = int(acc * total)
+        acc += pct
+        end = int(acc * total)
+        bounds.append((start, end))
+
+    problem_line = "A common pain point your audience has and why it matters."
     if goals:
         problem_line = f"Pain point related to: {', '.join(goals[:2])}."
     tip_line = "One actionable tip the viewer can try right away."
@@ -177,11 +193,11 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
     cta_line = mods.get('cta')
 
     beats = [
-        {"t": "0-3s",  "osd": "Hook", "line": hook},
-        {"t": "3-10s", "osd": "Problem", "line": problem_line},
-        {"t": "10-20s","osd": "Tip", "line": tip_line},
-        {"t": "20-30s","osd": "Example", "line": example_line},
-        {"t": "30-40s","osd": "CTA", "line": cta_line}
+        {"start_s": bounds[0][0], "end_s": bounds[0][1], "osd": "Hook", "line": hook},
+        {"start_s": bounds[1][0], "end_s": bounds[1][1], "osd": "Problem", "line": problem_line},
+        {"start_s": bounds[2][0], "end_s": bounds[2][1], "osd": "Tip", "line": tip_line},
+        {"start_s": bounds[3][0], "end_s": bounds[3][1], "osd": "Example", "line": example_line},
+        {"start_s": bounds[4][0], "end_s": bounds[4][1], "osd": "CTA", "line": cta_line}
     ]
 
     # combine style-based shot guidance with industry-specific suggestions
@@ -230,27 +246,68 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
     elif industry_key == 'artisan':
         industry_shots = ["Hands-on process close-ups, product reveal"]
 
-    shot_list = industry_shots + style_shots
+    # convert simple descriptions into structured shots aligned to beats
+    shot_list = []
+    combined_shots = industry_shots + style_shots
+    for idx, b in enumerate(beats):
+        base = combined_shots[idx % max(1, len(combined_shots))]
+        shot_list.append({
+            "start_s": b["start_s"],
+            "end_s": b["end_s"],
+            "shot_type": base,
+            "duration_s": b["end_s"] - b["start_s"],
+            "notes": "Match cuts to spoken lines; stable framing; consider jump cuts for energy."
+        })
 
-    hashtags = default_hashtags(industry, brand_keywords + niche_keywords)
+    hashtags_all = default_hashtags(industry, brand_keywords + niche_keywords)
+    hashtags = {"primary": hashtags_all[:3], "optional": hashtags_all[3:8]}
     thumb_prompt = f"Portrait thumbnail: {industry} • {style}. {mods.get('thumb_extra')}"
 
-    # SRT prompt should include style, company and the beats for better auto-subtitle generation
-    srt_context = f"Generate SRT subtitles for a 30-40s {style} reel about {pillar_name} in {industry}."
-    if company: srt_context += f" Mention company: {company}."
-    if goals: srt_context += f" Focus: {', '.join(goals[:3])}."
+    # generate SRT text from beats
+    def fmt_ts(s):
+        ms = int(s * 1000)
+        h = ms // 3600000
+        ms -= h * 3600000
+        m = ms // 60000
+        ms -= m * 60000
+        sec = ms // 1000
+        ms = ms % 1000
+        return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+    srt_lines = []
+    for i, b in enumerate(beats, start=1):
+        start = fmt_ts(b["start_s"]) ; end = fmt_ts(b["end_s"])
+        text = b["line"]
+        srt_lines.append(f"{i}\n{start} --> {end}\n{text}\n")
+    srt_text = "\n".join(srt_lines)
+
+    # music suggestion mapping by tone
+    mood_map = {
+        "friendly": "acoustic upbeat, 90-110 BPM",
+        "professional": "minimal ambient, 60-80 BPM",
+        "playful": "funky pop, 100-125 BPM",
+        "inspirational": "uplifting cinematic, 70-100 BPM"
+    }
+    music = mood_map.get(tone.lower(), "neutral upbeat, 90 BPM")
+
+    cta_variants = [{"type": "primary", "text": cta_line}, {"type": "soft", "text": "Learn more / link in bio"}, {"type": "engage", "text": "Comment your favorite"}]
 
     return {
         "style": style,
+        "length_seconds": length_seconds,
+        "ranked_hooks": ranked_hooks,
         "hook": hook,
         "beats": beats,
-        "script_beats": [b.get('line') if isinstance(b, dict) else b for b in beats],
+        "script_beats": [b.get('line') for b in beats],
         "shot_list": shot_list,
         "on_screen_text": [b.get('osd') for b in beats],
         "hashtags": hashtags,
         "cta": cta_line,
+        "cta_variants": cta_variants,
         "thumbnail_prompt": thumb_prompt,
-        "srt_prompt": srt_context
+        "srt": srt_text,
+        "music_suggestion": music,
+        "production_tier": production_tier
     }
 
 def unsplash_link(industry: str, pillar_name: str):
@@ -294,7 +351,17 @@ def generate_posts(days: int, start_day, industry: str, tone: str,
                     reel_style = (details or {}).get('reel_style')
                 except Exception:
                     reel_style = None
-                reel_obj = make_reel_plan(industry, pillar_name, brand_keywords, tone, company, reel_style, goals=goals, niche_keywords=niche_keywords)
+                reel_length = None
+                production_tier = None
+                try:
+                    reel_length = int((details or {}).get('reel_length') or 30)
+                except Exception:
+                    reel_length = 30
+                try:
+                    production_tier = (details or {}).get('production_tier') or 'solo'
+                except Exception:
+                    production_tier = 'solo'
+                reel_obj = make_reel_plan(industry, pillar_name, brand_keywords, tone, company, reel_style, goals=goals, niche_keywords=niche_keywords, length_seconds=reel_length, production_tier=production_tier)
 
             posts.append({
                 "date": day.isoformat(),
