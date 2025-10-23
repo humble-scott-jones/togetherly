@@ -1,14 +1,36 @@
-Local Stripe setup (test mode)
 
-This project includes a minimal Stripe Checkout + webhook skeleton to test subscriptions locally.
+Stripe local development setup
 
-Required env vars (for local testing):
+1) Install the Stripe CLI
 
-- STRIPE_SECRET_KEY - your Stripe secret key (test key)
-- STRIPE_TEST_PRICE_ID - the price ID for your monthly subscription in Stripe (test price created in Stripe dashboard)
-- STRIPE_SUCCESS_URL - optional (defaults to http://localhost:5001/)
-- STRIPE_CANCEL_URL - optional (defaults to http://localhost:5001/)
-- STRIPE_WEBHOOK_SECRET - optional (if you use Stripe CLI to forward webhooks, set this to the webhook signing secret)
+	https://stripe.com/docs/stripe-cli
+
+2) Create a local .env from the template and fill in your test keys
+
+	cp .env.example .env
+	# edit .env and replace the STRIPE_* placeholders with your test keys
+
+3) Forward Stripe webhooks to your local server (Stripe CLI)
+
+	stripe listen --forward-to http://localhost:5001/api/stripe-webhook
+
+	The listen command prints a webhook signing secret (starts with whsec_...). Copy that value into STRIPE_WEBHOOK_SECRET in your .env.
+
+4) Start the dev server
+
+	FLASK_APP=app.py FLASK_ENV=development FLASK_RUN_PORT=5001 flask run --host=127.0.0.1
+
+5) Test (examples)
+
+	# dev ping
+	curl http://127.0.0.1:5001/__dev__/ping
+
+	# content metadata
+	curl http://127.0.0.1:5001/api/content
+
+Security notes
+- Never commit a real .env with secrets. Keep keys in your local .env or in your CI secrets.
+- For production, use real Stripe keys and set STRIPE_WEBHOOK_SECRET to the signing secret from your hosted webhook endpoint.
 
 Quick test flow:
 
