@@ -100,6 +100,13 @@ def init_db():
             expires_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS generation_usage (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            period TEXT,
+            reels_generated INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
     # Backfill for upgrades
@@ -928,6 +935,7 @@ def save_profile():
 @app.get("/api/profile")
 def get_profile():
     profile_id = session.get("profile_id")
+    uid = session.get('user_id')
     if not profile_id:
         return jsonify({})
     db = get_db()
@@ -977,6 +985,7 @@ def api_generate():
     details = data.get("details", {})
     include_images = bool(data.get("include_images", True))
     company = data.get("company", "")
+    details = data.get("details", {}) or {}
 
     # enforce server-side gating for 7-day (or longer) generation
     flags = load_flags()
@@ -989,6 +998,26 @@ def api_generate():
         user = db.execute('SELECT is_paid FROM users WHERE id = ?', (uid,)).fetchone()
         if not user or not user['is_paid']:
             return jsonify({'ok': False, 'error': 'Paid subscription required for this feature'}), 403
+
+    # Reels gating & quota: if the requested platforms will produce reels, ensure user is paid and under quota
+    reel_platforms = set(['instagram', 'tiktok', 'short_video'])
+    requested_reel_platforms = [p for p in (platforms or []) if p and p.lower() in reel_platforms]
+    reels_requested = max(0, len(requested_reel_platforms)) * int(days)
+    if reels_requested > 0:
+        uid = session.get('user_id')
+        if not uid:
+            return jsonify({'ok': False, 'error': 'Authentication required to generate reels'}), 401
+        db = get_db()
+        user = db.execute('SELECT is_paid FROM users WHERE id = ?', (uid,)).fetchone()
+        if not user or not user['is_paid']:
+            return jsonify({'ok': False, 'error': 'Paid subscription required to generate reels'}), 403
+        # check monthly quota (env var REELS_QUOTA_MONTHLY default 30)
+        quota = int(os.getenv('REELS_QUOTA_MONTHLY', '30'))
+        period = date.today().strftime('%Y-%m')
+        row = db.execute('SELECT reels_generated FROM generation_usage WHERE user_id = ? AND period = ?', (uid, period)).fetchone()
+        used = int(row['reels_generated']) if row else 0
+        if used + reels_requested > quota:
+            return jsonify({'ok': False, 'error': 'Reel generation quota exceeded for this billing period', 'quota': quota, 'used': used}), 403
 
     posts = generate_posts(
         days=days,
@@ -1003,6 +1032,22 @@ def api_generate():
         details=details,
         company=company
     )
+
+    # if reels were requested, increment usage after successful generation
+    if reels_requested > 0:
+        try:
+            db = get_db()
+            period = date.today().strftime('%Y-%m')
+            current_uid = session.get('user_id')
+            existing = db.execute('SELECT reels_generated FROM generation_usage WHERE user_id = ? AND period = ?', (current_uid, period)).fetchone()
+            if existing:
+                db.execute('UPDATE generation_usage SET reels_generated = reels_generated + ? WHERE user_id = ? AND period = ?', (reels_requested, current_uid, period))
+            else:
+                db.execute('INSERT INTO generation_usage (id, user_id, period, reels_generated) VALUES (?, ?, ?, ?)', (str(uuid.uuid4()), current_uid, period, reels_requested))
+            db.commit()
+        except Exception:
+            # non-fatal: do not fail generation if usage increment fails
+            pass
     return jsonify({"count": len(posts), "posts": posts, "profile_id": profile_id})
 
 @app.post("/api/feedback")
