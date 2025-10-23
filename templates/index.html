@@ -18,6 +18,20 @@
     </div>
   </header>
 
+  {% if is_dev %}
+  <div class="max-w-6xl mx-auto px-6 py-3">
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 text-sm text-slate-800">
+      Dev helper: create a test user —
+      <form id="dev-create-form" class="inline-flex items-center gap-2 ml-2">
+        <input id="dev-email" class="input text-sm" placeholder="dev@example.com" value="dev@example.com" />
+        <input id="dev-password" class="input text-sm" placeholder="password" value="password" />
+        <label class="flex items-center gap-1 text-sm"><input id="dev-paid" type="checkbox" /> Paid</label>
+        <button id="dev-create-btn" class="btn-ghost btn-sm">Create & Sign in</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <main class="max-w-6xl mx-auto p-6 grid lg:grid-cols-[1fr,360px] gap-6">
     <section class="card">
       <div class="flex items-center justify-between">
@@ -71,13 +85,15 @@
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Optional note for this month</label>
-              <input id="note" class="w-full input" placeholder="e.g., Spring sale, workshop, new menu launch" />
+              <input id="note" autocomplete="off" spellcheck="false" class="w-full input" placeholder="e.g., Spring sale, workshop, new menu launch" />
             </div>
           </div>
           <div class="mt-3">
             <label class="block text-sm font-medium mb-1">Company / Business name (optional)</label>
             <input id="company" class="w-full input" placeholder="e.g., Laura's Bakery" />
+            <div id="error-company" class="text-xs text-red-600 mt-1 hidden" aria-live="polite"></div>
           </div>
+          <div id="error-form" class="text-sm text-red-600 mt-2 hidden" aria-live="polite"></div>
           <div class="flex items-center gap-3 mt-2">
             <input id="include_images" type="checkbox" checked />
             <label for="include_images" class="text-sm">Suggest image ideas</label>
@@ -91,26 +107,40 @@
       </div>
     </section>
 
-    <!-- Sidebar removed: summary and generate controls are shown in the modal after finish -->
-    <div id="setup-modal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
-          <div class="bg-white p-6 rounded shadow-lg w-11/12 max-w-lg relative">
-            <button id="modal-x" aria-label="Close setup modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600">&times;</button>
-            <h2 class="text-lg font-semibold mb-2">You're all set 🎉</h2>
-            <p class="text-sm text-slate-700 mb-4">Your setup is saved. What would you like to do next?</p>
-            <div class="mb-4">
-              <h4 class="text-sm font-medium mb-2">Your setup</h4>
-              <ul id="modal-summary" class="text-sm text-slate-700 space-y-1 mb-2"></ul>
-              <div class="text-xs text-slate-500">Content pack: <span id="modal-content-version">loading…</span></div>
-            </div>
-            <div class="flex gap-2">
-              <button id="modal-generate-1" class="btn-ghost w-full">Generate 1‑day sample</button>
-              <button id="modal-generate-30" class="btn-primary w-full">Generate 30‑day plan</button>
-            </div>
-            <div class="mt-3 text-right">
-              <button id="modal-close" class="text-sm text-slate-500">Close</button>
-            </div>
-          </div>
+    <!-- Inline summary & generate controls (moved from modal back into the page to avoid modal-only failures) -->
+    <aside id="setup-summary-inline" class="card">
+      <h4 class="text-sm font-medium mb-2">Setup progress</h4>
+      <p class="text-sm text-slate-600 mb-3">Click any section to jump back and edit it.</p>
+      <div class="mb-3">
+        <ul id="modal-summary" class="text-sm text-slate-700 space-y-2 mb-3"></ul>
+        <div class="text-xs text-slate-500">Content pack: <span id="modal-content-version">loading…</span></div>
+      </div>
+      <div class="flex gap-2">
+        <button id="modal-generate-1" class="btn-ghost w-full">Generate 1‑day sample</button>
+        <button id="modal-generate-7" class="btn-primary w-full hidden">Generate 7‑day plan (paid)</button>
+      </div>
+    </aside>
+    <!-- Paywall modal (hidden by default) -->
+    <div id="paywall-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="paywall-title">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md" tabindex="-1">
+        <h3 id="paywall-title" class="text-lg font-semibold mb-2">Upgrade for a 7‑day plan</h3>
+        <p class="text-sm text-slate-600 mb-4">Get a full 7‑day social media plan, reel scripts, and thumbnails — delivered instantly. Cancel anytime.</p>
+        <div id="paywall-message" class="text-sm text-red-600 mb-2 hidden" role="status" aria-live="polite"></div>
+        <div class="mb-4">
+          <div class="text-sm">Monthly subscription</div>
+          <div class="text-2xl font-bold">$14 / month</div>
         </div>
+        <div class="flex gap-2">
+          <button id="paywall-cancel" class="btn-secondary">Cancel</button>
+          <button id="paywall-subscribe" class="btn-primary" data-loading-text="Processing…">Start free trial</button>
+        </div>
+          <div id="stripe-elements-wrap" class="mt-4 hidden">
+            <label class="block text-sm font-medium mb-2">Card details</label>
+            <div id="card-element" class="p-3 border rounded bg-slate-50"></div>
+            <div id="card-errors" class="text-sm text-red-600 mt-2 hidden" role="status" aria-live="polite"></div>
+          </div>
+      </div>
+    </div>
     </main>
 
     <section class="card mt-6 col-span-1 lg:col-span-2">
@@ -126,3 +156,49 @@
   <script src="/static/app.js"></script>
 </body>
 </html>
+
+<!-- Auth modal (signup / login / password reset) -->
+<div id="auth-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div class="bg-white rounded-lg p-6 w-full max-w-md" tabindex="-1">
+    <button id="auth-close" class="float-right text-slate-500" aria-label="Close">✕</button>
+    <h3 id="auth-title" class="text-lg font-semibold mb-2">Sign in</h3>
+    <div id="auth-message" class="text-sm text-red-600 mb-2 hidden" role="status" aria-live="polite"></div>
+    <div id="auth-forms">
+      <form id="login-form" class="space-y-3">
+        <input id="auth-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <input id="auth-password" type="password" class="w-full input" placeholder="Password" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button type="submit" class="btn-primary">Sign in</button>
+          <button id="show-reset" type="button" class="text-sm text-brand">Forgot?</button>
+        </div>
+        <div class="text-sm text-slate-500">Don’t have an account? <button id="show-signup" type="button" class="text-brand">Sign up</button></div>
+      </form>
+
+      <form id="signup-form" class="hidden space-y-3">
+        <input id="signup-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <input id="signup-password" type="password" class="w-full input" placeholder="Password (min 6 chars)" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button type="submit" class="btn-primary">Create account</button>
+          <button id="show-login" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+
+      <form id="reset-form" class="hidden space-y-3">
+        <input id="reset-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button id="request-reset" type="button" class="btn-primary">Send reset link</button>
+          <button id="reset-back" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+
+      <form id="confirm-reset-form" class="hidden space-y-3">
+        <input id="confirm-token" class="w-full input" placeholder="Reset token (from dev)" aria-describedby="auth-message" />
+        <input id="confirm-password" type="password" class="w-full input" placeholder="New password" aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button id="confirm-reset" type="button" class="btn-primary">Set password</button>
+          <button id="confirm-back" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
