@@ -26,6 +26,11 @@
     {"key": "tiktok", "label": "TikTok"},
     {"key": "short_video", "label": "Short Video (Reels/TikTok/Shorts)"}
   ],
+  "pricing": {
+    "monthly_display": "$9 / month",
+    "description": "Monthly subscription — cancel anytime",
+    "price_id_env": "STRIPE_TEST_PRICE_ID"
+  },
   "questions": {
     "realtor": [
       {"type":"chips","key":"goals","label":"What do you want to focus on?","options":["New listings","Local lifestyle","Market tips","Testimonials"]},

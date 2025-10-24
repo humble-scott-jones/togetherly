@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Optional
 
 PILLARS_BY_DEFAULT = [
@@ -31,7 +31,8 @@ def default_hashtags(industry: str, niche_keywords: list[str]):
     return tags[:12]
 
 def to_sentence_case(s: str):
-    if not s: return s
+    if not s:
+        return s
     return s[0].upper() + s[1:]
 
 def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
@@ -276,7 +277,8 @@ def make_reel_plan(industry: str, pillar_name: str, brand_keywords: list[str], t
 
     srt_lines = []
     for i, b in enumerate(beats, start=1):
-        start = fmt_ts(b["start_s"]) ; end = fmt_ts(b["end_s"])
+        start = fmt_ts(b["start_s"])
+        end = fmt_ts(b["end_s"])
         text = b["line"]
         srt_lines.append(f"{i}\n{start} --> {end}\n{text}\n")
     srt_text = "\n".join(srt_lines)
