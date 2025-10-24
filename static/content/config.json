@@ -1,0 +1,78 @@
+{
+  "version": "2025.01",
+  "industries": [
+    {"key": "realtor", "icon": "🏡", "label": "Realtor / Real Estate", "suggested_keywords": ["listings","open house","neighborhood","market update"], "note_placeholder": "e.g., new listing on Main St, spring open house"},
+    {"key": "restaurant", "icon": "🍽️", "label": "Restaurant / Café", "suggested_keywords": ["seasonal menu","happy hour","chef special","locally sourced"], "note_placeholder": "e.g., Mother's Day brunch menu, new seasonal cocktail"},
+    {"key": "retail", "icon": "🛍️", "label": "Retail / Boutique", "suggested_keywords": ["new arrivals","gift guide","small batch","sale"], "note_placeholder": "e.g., spring collection launch, weekend sale"},
+    {"key": "fitness", "icon": "💪", "label": "Fitness / Wellness", "suggested_keywords": ["workout tips","member spotlight","wellness","challenge"], "note_placeholder": "e.g., 30-day fitness challenge, new class schedule"},
+    {"key": "artisan", "icon": "🎨", "label": "Artisan / Maker", "suggested_keywords": ["handmade","process","studio","limited edition"], "note_placeholder": "e.g., studio pop-up, new handcrafted line"},
+    {"key": "coach", "icon": "🧭", "label": "Coach / Consultant", "suggested_keywords": ["tips","client wins","strategy","workshop"], "note_placeholder": "e.g., upcoming workshop, limited coaching spots"},
+    {"key": "nonprofit", "icon": "🤝", "label": "Nonprofit / Community", "suggested_keywords": ["impact","volunteers","donation","event"], "note_placeholder": "e.g., volunteer drive, annual fundraising event"},
+    {"key": "home_services", "icon": "🛠️", "label": "Home Services", "suggested_keywords": ["before and after","tips","seasonal maintenance","reviews"], "note_placeholder": "e.g., spring maintenance reminders, new service offering"},
+    {"key": "healthcare", "icon": "🩺", "label": "Healthcare", "suggested_keywords": ["patient tips","team","clinic hours","wellness"], "note_placeholder": "e.g., flu shot clinics, new telehealth hours"},
+    {"key": "other", "icon": "✨", "label": "Other / Custom", "suggested_keywords": ["about","what we do","behind the scenes"], "note_placeholder": "One-line note about this month's focus"}
+  ],
+  "tones": [
+    {"key": "friendly", "label": "Friendly"},
+    {"key": "professional", "label": "Professional"},
+    {"key": "playful", "label": "Playful"},
+    {"key": "inspirational", "label": "Inspirational"}
+  ],
+  "platforms": [
+    {"key": "instagram", "label": "Instagram"},
+    {"key": "facebook", "label": "Facebook"},
+    {"key": "linkedin", "label": "LinkedIn"},
+    {"key": "twitter", "label": "X / Twitter"},
+    {"key": "tiktok", "label": "TikTok"},
+    {"key": "short_video", "label": "Short Video (Reels/TikTok/Shorts)"}
+  ],
+  "pricing": {
+    "monthly_display": "$9 / month",
+    "description": "Monthly subscription — cancel anytime",
+    "price_id_env": "STRIPE_TEST_PRICE_ID"
+  },
+  "questions": {
+    "realtor": [
+      {"type":"chips","key":"goals","label":"What do you want to focus on?","options":["New listings","Local lifestyle","Market tips","Testimonials"]},
+      {"type":"text","key":"area","label":"Primary area (optional)","placeholder":"e.g., Johns Island"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Property b-roll + captions","Local hotspot montage","Story + before/after"]}
+    ],
+    "restaurant": [
+      {"type":"chips","key":"goals","label":"What do you want to highlight?","options":["Menu items","Seasonal specials","Events","Team"]},
+      {"type":"text","key":"cuisine","label":"Cuisine (optional)","placeholder":"e.g., Southern coastal"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Product b-roll + captions","Local hotspot montage","Story + before/after"]}
+    ],
+    "retail": [
+      {"type":"chips","key":"goals","label":"Content emphasis","options":["New arrivals","How-to style","Promotions","Community"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Product b-roll + captions","Local hotspot montage","Story + before/after"]}
+    ],
+    "fitness": [
+      {"type":"chips","key":"goals","label":"What fits best?","options":["Motivation","Education","Member stories","Promotions"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Workout montage","Local hotspot montage","Story + before/after"]}
+    ],
+    "artisan": [
+      {"type":"chips","key":"goals","label":"What should we lean into?","options":["Process","Products","Story","Events"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Process b-roll + captions","Local hotspot montage","Story + before/after"]}
+    ],
+    "coach": [
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Tips","Client wins","Offers","Mindset"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Story + before/after","Local hotspot montage","Quick demo"]}
+    ],
+    "nonprofit": [
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Impact","Events","Volunteers","Donations"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Story + before/after","Impact montage","Local hotspot montage","Volunteer spotlight"]}
+    ],
+    "home_services": [
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Before/after","Tips","Seasonal reminders","Reviews"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Before/after","Face-camera tips","How-to demo","Story + before/after"]}
+    ],
+    "healthcare": [
+      {"type":"chips","key":"goals","label":"Primary focus","options":["Education","Team","Patient resources","Community"]},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Education tips","Team spotlight","Patient story","Quick explainer"]}
+    ],
+    "other": [
+      {"type":"text","key":"describe","label":"Tell us a sentence about your work","placeholder":"One line about what you do"},
+      {"type":"chips","key":"reel_style","label":"Reel style","options":["Face-camera tips","Local hotspot montage","Story + before/after","Process b-roll + captions"]}
+    ]
+  }
+}

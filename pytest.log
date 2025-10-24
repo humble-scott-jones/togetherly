@@ -1,0 +1,47 @@
+........F
+=================================== FAILURES ===================================
+_____________________ test_dev_admin_seed_and_create_user ______________________
+
+client = <FlaskClient <Flask 'app'>>
+
+    def test_dev_admin_seed_and_create_user(client):
+        # ensure the init_db seeding created the dev admin when running in test fixture
+        # Note: tests run without FLASK_ENV=development by default; ensure seed runs by setting env var
+        os.environ['ALLOW_DEV_DEBUG'] = '1'
+        with togetherly_app.app.app_context():
+            togetherly_app.init_db()
+        # dev admin should exist in DB
+>       row = client.application.DB_PATH and togetherly_app.get_user_by_email('hi.scott.jones@gmail.com')
+
+tests/test_dev_admin.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+app.py:441: in get_user_by_email
+    db = get_db()
+app.py:37: in get_db
+    if "db" not in g:
+.venv/lib/python3.9/site-packages/werkzeug/local.py:318: in __get__
+    obj = instance._get_current_object()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _get_current_object() -> T:
+        try:
+            obj = local.get()
+        except LookupError:
+>           raise RuntimeError(unbound_message) from None
+E           RuntimeError: Working outside of application context.
+E           
+E           This typically means that you attempted to use functionality that needed
+E           the current application. To solve this, set up an application context
+E           with app.app_context(). See the documentation for more information.
+
+.venv/lib/python3.9/site-packages/werkzeug/local.py:519: RuntimeError
+=============================== warnings summary ===============================
+.venv/lib/python3.9/site-packages/urllib3/__init__.py:35
+  /Users/daniellejones/Documents/togetherly_v2/.venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/daniellejones/Documents/togetherly_v2/pytest-report.xml -
+=========================== short test summary info ============================
+FAILED tests/test_dev_admin.py::test_dev_admin_seed_and_create_user - Runtime...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!

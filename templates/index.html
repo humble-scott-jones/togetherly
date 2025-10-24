@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Togetherly – Simple, smart social media that sounds like you</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-brand-sand text-slate-900">
+  <header class="px-6 py-5 bg-white/90 backdrop-blur border-b">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="logo-gradient"></div>
+        <h1 class="text-xl font-semibold tracking-tight">Togetherly</h1>
+      </div>
+      <a class="text-sm text-brand hover:underline" href="#">Sign in</a>
+    </div>
+  </header>
+
+  {% if is_dev %}
+  <div class="max-w-6xl mx-auto px-6 py-3">
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 text-sm text-slate-800">
+      Dev helper: create a test user —
+      <form id="dev-create-form" class="inline-flex items-center gap-2 ml-2">
+        <input id="dev-email" class="input text-sm" placeholder="dev@example.com" value="dev@example.com" />
+        <input id="dev-password" class="input text-sm" placeholder="password" value="password" />
+        <label class="flex items-center gap-1 text-sm"><input id="dev-paid" type="checkbox" /> Paid</label>
+        <button id="dev-create-btn" class="btn-ghost btn-sm">Create & Sign in</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="max-w-6xl mx-auto p-6 grid lg:grid-cols-[1fr,360px] gap-6">
+    <section class="card">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Let’s set up your voice</h2>
+          <p class="text-sm text-slate-600">Friendly questions. Clear choices. Great results.</p>
+        </div>
+        <div class="steps" id="steps">
+          <span class="step active">1</span>
+          <span class="bar"></span>
+          <span class="step">2</span>
+          <span class="bar"></span>
+          <span class="step">3</span>
+          <span class="bar"></span>
+          <span class="step">4</span>
+        </div>
+      </div>
+
+      <div id="wiz" class="mt-4 space-y-6">
+        <div class="step-panel" data-step="1">
+          <label class="block text-sm font-medium mb-2">What best describes your work?</label>
+          <div id="industries" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+        </div>
+
+        <div class="step-panel hidden" data-step="2">
+          <label class="block text-sm font-medium mb-2">A few quick details</label>
+          <div id="industry-questions" class="grid gap-3"></div>
+        </div>
+
+        <div class="step-panel hidden" data-step="3">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-2">Pick your tone</label>
+              <div id="tones" class="grid grid-cols-2 gap-2"></div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-2">Platforms</label>
+              <div id="platforms" class="grid grid-cols-2 gap-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-panel hidden" data-step="4">
+          <div class="grid md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1">Suggested keywords</label>
+              <div id="suggested-keywords" class="flex flex-wrap gap-2 mb-2"></div>
+              <label class="block text-sm font-medium mb-1">Add more keywords (optional)</label>
+              <input id="extra-keywords" class="w-full input" placeholder="Type and press Enter or separate with commas" />
+              <div class="text-xs text-slate-500 mt-1">Select suggested keywords or type your own. We'll include them in your plan.</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Optional note for this month</label>
+              <input id="note" autocomplete="off" spellcheck="false" class="w-full input" placeholder="e.g., Spring sale, workshop, new menu launch" />
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="block text-sm font-medium mb-1">Company / Business name (optional)</label>
+            <input id="company" class="w-full input" placeholder="e.g., Laura's Bakery" />
+            <div id="error-company" class="text-xs text-red-600 mt-1 hidden" aria-live="polite"></div>
+          </div>
+          <div id="error-form" class="text-sm text-red-600 mt-2 hidden" aria-live="polite"></div>
+          <div class="flex items-center gap-3 mt-2">
+            <input id="include_images" type="checkbox" checked />
+            <label for="include_images" class="text-sm">Suggest image ideas</label>
+          </div>
+        </div>
+
+        <div class="flex justify-between pt-2">
+          <button id="prev" class="btn-secondary" disabled>Back</button>
+          <button id="next" class="btn-primary">Next</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Inline summary & generate controls (moved from modal back into the page to avoid modal-only failures) -->
+    <aside id="setup-summary-inline" class="card">
+      <h4 class="text-sm font-medium mb-2">Setup progress</h4>
+      <p class="text-sm text-slate-600 mb-3">Click any section to jump back and edit it.</p>
+      <div class="mb-3">
+        <ul id="modal-summary" class="text-sm text-slate-700 space-y-2 mb-3"></ul>
+        <div class="text-xs text-slate-500">Content pack: <span id="modal-content-version">loading…</span></div>
+      </div>
+      <div class="flex gap-2">
+        <button id="modal-generate-1" class="btn-ghost w-full">Generate 1-day sample</button>
+        <button id="modal-generate-reels" class="btn-ghost w-full">Generate 5-reel sample</button>
+        <button id="modal-generate-7" class="btn-primary w-full hidden">Generate 7-day plan (paid)</button>
+      </div>
+      <p class="text-xs text-slate-500 mt-3">Each account includes one free 1-day sample after signup.</p>
+    </aside>
+    <!-- Paywall modal (hidden by default) -->
+    <div id="paywall-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="paywall-title">
+      <div class="bg-white rounded-lg p-6 w-full max-w-md" tabindex="-1">
+  <h3 id="paywall-title" class="text-lg font-semibold mb-2">Unlock unlimited plans</h3>
+  <p class="text-sm text-slate-600 mb-4">Subscribe for weekly and monthly content drops, reels, and every new upgrade. Cancel anytime.</p>
+        <div id="paywall-message" class="text-sm text-red-600 mb-2 hidden" role="status" aria-live="polite"></div>
+        <div class="mb-4">
+          <div class="text-sm">Monthly subscription</div>
+          <div class="text-2xl font-bold" id="paywall-price">loading…</div>
+          <div class="text-xs text-slate-500" id="paywall-price-desc"></div>
+        </div>
+        <div id="paywall-signup-area" class="mb-4">
+          <div class="text-sm font-medium mb-1">Create an account to start your membership</div>
+          <input id="paywall-email" class="w-full input mb-2" type="email" placeholder="Email address" />
+          <input id="paywall-password" class="w-full input mb-2" type="password" placeholder="Choose a password" />
+          <div id="paywall-signup-error" class="text-sm text-red-600 mb-2 hidden" aria-live="polite"></div>
+          <div class="text-xs text-slate-500">Already have an account? <button id="paywall-signin-link" type="button" class="text-brand underline">Sign in</button></div>
+        </div>
+        <div class="flex gap-2">
+          <button id="paywall-cancel" class="btn-secondary">Cancel</button>
+          <button id="paywall-subscribe" class="btn-primary" data-loading-text="Processing…">Subscribe now</button>
+        </div>
+          <div id="stripe-elements-wrap" class="mt-4 hidden">
+            <label class="block text-sm font-medium mb-2">Card details</label>
+            <div id="card-element" class="p-3 border rounded bg-slate-50"></div>
+            <div id="card-errors" class="text-sm text-red-600 mt-2 hidden" role="status" aria-live="polite"></div>
+          </div>
+      </div>
+    </div>
+    </main>
+
+    <section class="card mt-6 col-span-1 lg:col-span-2">
+      <h3 class="font-semibold mb-2">Preview</h3>
+      <div id="results" class="space-y-3"></div>
+    </section>
+  </main>
+
+  <footer class="text-center text-xs text-slate-500 py-6">
+    Made with care • Togetherly
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
+<!-- Auth modal (signup / login / password reset) -->
+<div id="auth-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div class="bg-white rounded-lg p-6 w-full max-w-md" tabindex="-1">
+    <button id="auth-close" class="float-right text-slate-500" aria-label="Close">✕</button>
+    <h3 id="auth-title" class="text-lg font-semibold mb-2">Sign in</h3>
+    <div id="auth-message" class="text-sm text-red-600 mb-2 hidden" role="status" aria-live="polite"></div>
+    <div id="auth-forms">
+      <form id="login-form" class="space-y-3">
+        <input id="auth-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <input id="auth-password" type="password" class="w-full input" placeholder="Password" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button type="submit" class="btn-primary">Sign in</button>
+          <button id="show-reset" type="button" class="text-sm text-brand">Forgot?</button>
+        </div>
+        <div class="text-sm text-slate-500">Don’t have an account? <button id="show-signup" type="button" class="text-brand">Sign up</button></div>
+      </form>
+
+      <form id="signup-form" class="hidden space-y-3">
+        <input id="signup-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <input id="signup-password" type="password" class="w-full input" placeholder="Password (min 6 chars)" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button type="submit" class="btn-primary">Create account</button>
+          <button id="show-login" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+
+      <form id="reset-form" class="hidden space-y-3">
+        <input id="reset-email" type="email" class="w-full input" placeholder="Email" required aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button id="request-reset" type="button" class="btn-primary">Send reset link</button>
+          <button id="reset-back" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+
+      <form id="confirm-reset-form" class="hidden space-y-3">
+        <input id="confirm-token" class="w-full input" placeholder="Reset token (from dev)" aria-describedby="auth-message" />
+        <input id="confirm-password" type="password" class="w-full input" placeholder="New password" aria-describedby="auth-message" />
+        <div class="flex items-center justify-between">
+          <button id="confirm-reset" type="button" class="btn-primary">Set password</button>
+          <button id="confirm-back" type="button" class="text-sm text-brand">Back</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

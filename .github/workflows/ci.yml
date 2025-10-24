@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feature/content-pack ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+    env:
+      FLASK_ENV: development
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      # support either STRIPE_PRICE_ID (new) or legacy STRIPE_TEST_PRICE_ID
+      STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+      STRIPE_TEST_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Install test tooling (flake8, playwright)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install flake8
+          # install Playwright Python package if e2e tests are present or to allow browser install
+          python -m pip install playwright || true
+          python -m playwright install --with-deps || true
+
+      - name: Lint (flake8)
+        run: |
+          set -o pipefail
+          # exit code 0 if no files to lint
+          flake8 || true
+
+      - name: Run pytest (junit + logs)
+        id: pytest
+        run: |
+          set -o pipefail
+          echo "Running pytest..."
+          # Save junit xml and stdout log for artifact upload on failure
+          pytest -q --maxfail=1 --junitxml=pytest-report.xml 2>&1 | tee pytest.log
+        env:
+          PYTHONWARNINGS: "ignore::DeprecationWarning"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            pytest-report.xml
+            pytest.log
+          # also upload any playwright artifacts if present
+        
+      - name: Upload playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/**

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Account - Togetherly</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-brand-sand text-slate-900">
+  <header class="px-6 py-5 bg-white/90 backdrop-blur border-b">
+      <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="logo-gradient"></div>
+        <h1 class="text-xl font-semibold tracking-tight">Togetherly</h1>
+      </div>
+      <div class="flex items-center gap-4">
+        <a class="text-sm text-brand hover:underline" href="/">Home</a>
+        {% if is_admin %}
+          <a class="text-sm text-red-600 hover:underline" href="/admin">Admin</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6">
+    <section class="card">
+      <h2 class="text-lg font-semibold">Account</h2>
+      <div class="mt-4">
+        {% if not user %}
+          <p class="text-sm text-slate-600">You are not signed in. <a href="/" class="text-brand">Sign in</a> to manage your subscription.</p>
+        {% else %}
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs text-slate-500">Email</div>
+              <div class="font-medium">{{ user['email'] }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Subscription</div>
+              <div class="font-medium">{{ 'Active' if user['is_paid'] else 'None' }}</div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="bg-slate-50 p-3 rounded">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs text-slate-500">Status</div>
+                  <div class="font-medium">
+                    {% if subscription and subscription.status %}
+                      {{ subscription.status.capitalize() }}
+                    {% else %}
+                      {{ 'Active' if user['is_paid'] else 'Free' }}
+                    {% endif %}
+                  </div>
+                  {% if subscription and (subscription.current_period_end_iso or subscription.current_period_end_human) %}
+                    <div class="text-xs text-slate-500 mt-1">Next billing</div>
+                    <div id="next-billing" class="text-sm" data-iso="{{ subscription.current_period_end_iso or '' }}">{{ subscription.current_period_end_human or subscription.current_period_end_iso }}{% if subscription.days_until_renewal %} (in {{ subscription.days_until_renewal }} days){% endif %}</div>
+                  {% endif %}
+                </div>
+                <div>
+                    {% if user['is_paid'] %}
+                      <button id="manage-sub" class="btn-ghost">Manage</button>
+                      <button id="cancel-sub" class="btn-secondary">Cancel</button>
+                    {% else %}
+                      <button id="subscribe-now" class="btn-primary">Subscribe</button>
+                    {% endif %}
+                    <!-- Sign out button for all signed-in users -->
+                    <div class="mt-2">
+                      <button id="sign-out" class="text-sm text-slate-600 hover:underline">Sign out</button>
+                    </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const manage = document.getElementById('manage-sub');
+      const subscribe = document.getElementById('subscribe-now');
+      if (manage) manage.addEventListener('click', async () => {
+        const r = await fetch('/api/create-portal-session', { method: 'POST' });
+        if (!r.ok){ const j = await r.json().catch(()=>null); alert((j && j.error) || 'Could not open portal'); return; }
+        const j = await r.json(); if (j && j.url) window.location.href = j.url;
+      });
+      if (subscribe) subscribe.addEventListener('click', async () => {
+        const r = await fetch('/api/create-checkout-session', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ price_id: null }) });
+        if (!r.ok){ const j = await r.json().catch(()=>null); alert((j && j.error) || 'Checkout failed'); return; }
+        const j = await r.json(); if (j && j.url) window.location.href = j.url; else alert('Checkout failed');
+      });
+      const cancelBtn = document.getElementById('cancel-sub');
+      const cancelModal = document.createElement('div');
+      cancelModal.id = 'cancel-modal'; cancelModal.className = 'fixed inset-0 bg-black/40 hidden items-center justify-center';
+      cancelModal.innerHTML = `<div class="bg-white rounded p-4 max-w-sm w-full"><p class="mb-3">Are you sure you want to cancel your subscription? You can reopen it anytime.</p><div class="flex gap-2"><button id="cancel-no" class="btn-secondary">No</button><button id="cancel-yes" class="btn-primary">Yes, cancel</button></div></div>`;
+      document.body.appendChild(cancelModal);
+      cancelBtn?.addEventListener('click', () => { cancelModal.classList.remove('hidden'); });
+      document.getElementById('cancel-no')?.addEventListener('click', () => { cancelModal.classList.add('hidden'); });
+      document.getElementById('cancel-yes')?.addEventListener('click', async () => {
+        const btn = document.getElementById('cancel-yes'); btn.disabled = true; btn.textContent = 'Cancelling…';
+        try{
+          const r = await fetch('/api/cancel-subscription', { method: 'POST' });
+          const j = await r.json().catch(()=>null);
+          if (!r.ok) { alert((j && j.error) || 'Cancel failed'); btn.disabled = false; btn.textContent = 'Yes, cancel'; return; }
+          alert('Subscription canceled.');
+          window.location.reload();
+        }catch(e){ alert('Cancel failed'); btn.disabled = false; btn.textContent = 'Yes, cancel'; }
+      });
+      // Sign out handler
+      const signOutBtn = document.getElementById('sign-out');
+      if (signOutBtn){
+        signOutBtn.addEventListener('click', async () => {
+          try{
+            signOutBtn.disabled = true;
+            signOutBtn.textContent = 'Signing out…';
+            const r = await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+            if (!r.ok){ const j = await r.json().catch(()=>null); alert((j && j.error) || 'Sign out failed'); signOutBtn.disabled = false; signOutBtn.textContent = 'Sign out'; return; }
+            // on success redirect home
+            window.location.href = '/';
+          }catch(e){ alert('Sign out failed'); signOutBtn.disabled = false; signOutBtn.textContent = 'Sign out'; }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

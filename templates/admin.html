@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body class="p-6">
+    <main>
+      <h1>Admin</h1>
+      {% if not allowed %}
+        <p>You are not authorized to view this page.</p>
+      {% else %}
+        <section aria-labelledby="reconcile-heading">
+          <h2 id="reconcile-heading">Reconcile Subscriptions</h2>
+          <p>Click the button below to fetch subscription state from Stripe and update local records.</p>
+          <button id="reconcile-btn" data-csrf="{{ session.get('admin_csrf') or '' }}">Run reconciliation</button>
+          <div id="status" aria-live="polite" style="margin-top:1rem"></div>
+          <pre id="output" style="white-space:pre-wrap;margin-top:1rem;max-height:40vh;overflow:auto;background:#f6f8fa;padding:8px;border-radius:4px"></pre>
+        </section>
+        <script>
+          document.getElementById('reconcile-btn').addEventListener('click', async function () {
+            const statusEl = document.getElementById('status');
+            const outEl = document.getElementById('output');
+            statusEl.textContent = 'Running...';
+            outEl.textContent = '';
+            try {
+              const btn = document.getElementById('reconcile-btn');
+              const csrf = btn.getAttribute('data-csrf');
+              const res = await fetch('/api/reconcile-job?wait=1', { method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': csrf } });
+              statusEl.textContent = 'HTTP ' + res.status;
+              const j = await res.json().catch(()=>null);
+              if (j && j.job && j.job.result) {
+                try {
+                  const parsed = JSON.parse(j.job.result);
+                  outEl.textContent = JSON.stringify(parsed, null, 2);
+                } catch (e) {
+                  outEl.textContent = j.job.result;
+                }
+              } else if (j && j.job) {
+                outEl.textContent = JSON.stringify(j.job, null, 2);
+              } else {
+                outEl.textContent = 'No response';
+              }
+            } catch (err) {
+              statusEl.textContent = 'Error';
+              outEl.textContent = String(err);
+            }
+          });
+        </script>
+      {% endif %}
+    </main>
+  </body>
+</html>
