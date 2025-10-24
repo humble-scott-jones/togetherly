@@ -75,6 +75,7 @@ def init_db():
             email TEXT UNIQUE,
             password_hash TEXT,
             is_paid INTEGER DEFAULT 0,
+            free_sample_used INTEGER DEFAULT 0,
             stripe_customer_id TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -133,6 +134,11 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;")
             except Exception:
                 pass
+        if "free_sample_used" not in ucols:
+            try:
+                db.execute("ALTER TABLE users ADD COLUMN free_sample_used INTEGER DEFAULT 0;")
+            except Exception:
+                pass
     except Exception:
         pass
     db.commit()
@@ -153,7 +159,7 @@ def init_db():
             else:
                 try:
                     uid = str(uuid.uuid4())
-                    db.execute('INSERT INTO users (id, email, password_hash, is_admin, is_paid) VALUES (?, ?, ?, ?, ?)', (uid, dev_email, pw_hash, 1, 1))
+                    db.execute('INSERT INTO users (id, email, password_hash, is_admin, is_paid, free_sample_used) VALUES (?, ?, ?, ?, ?, ?)', (uid, dev_email, pw_hash, 1, 1, 0))
                 except Exception:
                     pass
             db.commit()
@@ -181,7 +187,7 @@ def account_page():
     subscription = None
     if user:
         sub = db.execute('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', (user['id'],)).fetchone()
-        subscription = dict(sub) if sub else None
+    subscription = row_to_mapping(sub) if sub else None
         # try to fetch fresh data from Stripe and enrich with human dates (best-effort)
         try:
             if subscription and stripe and os.getenv('STRIPE_SECRET_KEY') and subscription.get('stripe_subscription_id'):
@@ -228,7 +234,7 @@ def api_account():
     db = get_db()
     user = db.execute('SELECT id, email, is_paid, stripe_customer_id FROM users WHERE id = ?', (uid,)).fetchone()
     sub = db.execute('SELECT id, stripe_subscription_id, status, current_period_end FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', (uid,)).fetchone()
-    subscription_data = dict(sub) if sub else None
+    subscription_data = row_to_mapping(sub) if sub else None
     # if Stripe is configured and we have a stripe_subscription_id, try to fetch fresh status
     try:
         if subscription_data and stripe and os.getenv('STRIPE_SECRET_KEY') and subscription_data.get('stripe_subscription_id'):
@@ -392,7 +398,7 @@ def api_reconcile_job():
     if wait:
         run_job(job_id)
         row = db.execute('SELECT * FROM reconcile_jobs WHERE id = ?', (job_id,)).fetchone()
-        return jsonify({'ok': True, 'job': dict(row)})
+        return jsonify({'ok': True, 'job': row_to_mapping(row)})
     else:
         t = threading.Thread(target=run_job, args=(job_id,))
         t.daemon = True
@@ -408,7 +414,7 @@ def api_reconcile_job_get(job_id):
     row = db.execute('SELECT * FROM reconcile_jobs WHERE id = ?', (job_id,)).fetchone()
     if not row:
         return jsonify({'ok': False, 'error': 'Not found'}), 404
-    return jsonify({'ok': True, 'job': dict(row)})
+    return jsonify({'ok': True, 'job': row_to_mapping(row)})
 
 
 def is_admin():
@@ -424,7 +430,7 @@ def is_admin():
     # Prefer explicit is_admin column if present
     try:
         # sqlite3.Row supports mapping access; treat truthy values as admin
-        if 'is_admin' in row.keys() and row.get('is_admin'):
+        if 'is_admin' in row.keys() and row['is_admin']:
             return True
     except Exception:
         pass
@@ -444,6 +450,41 @@ def get_user_by_email(email: str):
 def get_user_by_id(uid: str):
     db = get_db()
     return db.execute('SELECT * FROM users WHERE id = ?', (uid,)).fetchone()
+
+
+def row_to_mapping(x):
+    """Convert sqlite3.Row or list-of-rows to plain Python dict(s).
+
+    - If x is None, return None.
+    - If x is a sqlite3.Row, return dict(x).
+    - If x is a list/tuple of sqlite3.Row, return a list of dicts.
+    - If x is already a dict, return it unchanged.
+    """
+    if x is None:
+        return None
+    # sqlite3.Row doesn't implement isinstance check to a dedicated class
+    try:
+        if isinstance(x, sqlite3.Row):
+            return dict(x)
+    except Exception:
+        # some sqlite3 versions may not support direct isinstance checks; fallback below
+        pass
+    # list/tuple of rows
+    if isinstance(x, (list, tuple)):
+        out = []
+        for it in x:
+            try:
+                if isinstance(it, sqlite3.Row):
+                    out.append(dict(it))
+                else:
+                    out.append(it)
+            except Exception:
+                out.append(it)
+        return out
+    # dict-like passthrough
+    if isinstance(x, dict):
+        return x
+    return x
 
 def set_user_paid(uid: str, paid: bool = True):
     db = get_db()
@@ -472,7 +513,7 @@ def api_signup():
     except Exception as e:
         return jsonify({'ok': False, 'error': 'Email already registered'}), 400
     session['user_id'] = uid
-    return jsonify({'ok': True, 'id': uid, 'email': email})
+    return jsonify({'ok': True, 'id': uid, 'email': email, 'is_paid': False, 'free_sample_used': False})
 
 
 @app.post('/api/login')
@@ -485,7 +526,8 @@ def api_login():
     if not row or not check_password_hash(row['password_hash'] or '', password):
         return jsonify({'ok': False, 'error': 'Invalid credentials'}), 401
     session['user_id'] = row['id']
-    return jsonify({'ok': True, 'id': row['id'], 'email': row['email'], 'is_paid': bool(row['is_paid'])})
+    free_sample_used = bool(row['free_sample_used']) if 'free_sample_used' in row.keys() else False
+    return jsonify({'ok': True, 'id': row['id'], 'email': row['email'], 'is_paid': bool(row['is_paid']), 'free_sample_used': free_sample_used})
 
 
 @app.post('/api/logout')
@@ -500,10 +542,10 @@ def api_current_user():
     if not uid:
         return jsonify({})
     db = get_db()
-    row = db.execute('SELECT id, email, is_paid FROM users WHERE id = ?', (uid,)).fetchone()
+    row = db.execute('SELECT id, email, is_paid, free_sample_used FROM users WHERE id = ?', (uid,)).fetchone()
     if not row:
         return jsonify({})
-    return jsonify({'id': row['id'], 'email': row['email'], 'is_paid': bool(row['is_paid'])})
+    return jsonify({'id': row['id'], 'email': row['email'], 'is_paid': bool(row['is_paid']), 'free_sample_used': bool(row['free_sample_used'])})
 
 
 @app.post('/api/create-checkout-session')
@@ -515,7 +557,8 @@ def api_create_checkout():
     if not uid:
         return jsonify({'ok': False, 'error': 'Authentication required'}), 401
     data = request.get_json(force=True)
-    price_id = data.get('price_id') or os.getenv('STRIPE_TEST_PRICE_ID')
+    # prefer STRIPE_PRICE_ID (canonical) but fall back to legacy STRIPE_TEST_PRICE_ID
+    price_id = data.get('price_id') or os.getenv('STRIPE_PRICE_ID') or os.getenv('STRIPE_TEST_PRICE_ID')
     if not price_id:
         return jsonify({'ok': False, 'error': 'No price configured. Set STRIPE_TEST_PRICE_ID or pass price_id.'}), 400
     stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
@@ -642,6 +685,50 @@ def api_stripe_publishable_key():
     return jsonify({'ok': True, 'publishableKey': os.getenv('STRIPE_PUBLISHABLE_KEY')})
 
 
+@app.get('/api/stripe-price')
+def api_stripe_price():
+    """Return a small JSON object describing the configured Stripe Price (amount/currency/interval, product name).
+
+    Uses STRIPE_TEST_PRICE_ID if no price_id query param is provided. Returns 501 if Stripe isn't configured.
+    """
+    if stripe is None or not os.getenv('STRIPE_SECRET_KEY'):
+        return jsonify({'ok': False, 'error': 'Stripe not configured'}), 501
+    # prefer STRIPE_PRICE_ID (canonical) but fall back to legacy STRIPE_TEST_PRICE_ID
+    price_id = request.args.get('price_id') or os.getenv('STRIPE_PRICE_ID') or os.getenv('STRIPE_TEST_PRICE_ID')
+    if not price_id:
+        return jsonify({'ok': False, 'error': 'No price_id configured'}), 400
+    try:
+        stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+        price = stripe.Price.retrieve(price_id)
+        # amount is typically in cents (unit_amount)
+        unit = price.get('unit_amount') or price.get('unit_amount_decimal')
+        currency = price.get('currency') or 'usd'
+        recurring = price.get('recurring') or {}
+        interval = recurring.get('interval') if recurring else None
+        # nice display string (e.g. "$9 / month")
+        display = None
+        try:
+            if unit is not None:
+                amt = int(unit) / 100.0
+                # show as integer dollars when whole dollars
+                display = f"${amt:.0f}" if (amt).is_integer() else f"${amt:.2f}"
+                if interval:
+                    display = f"{display} / {interval}"
+        except Exception:
+            display = None
+        product_obj = None
+        product_id = price.get('product')
+        if product_id:
+            try:
+                prod = stripe.Product.retrieve(product_id)
+                product_obj = {'id': prod.get('id'), 'name': prod.get('name')}
+            except Exception:
+                product_obj = None
+        return jsonify({'ok': True, 'price': {'id': price.get('id'), 'unit_amount': unit, 'currency': currency, 'interval': interval, 'display': display, 'product': product_obj}})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @app.post('/api/create-subscription')
 def api_create_subscription():
     """Create or update Stripe Customer, attach payment method, and create a subscription.
@@ -655,7 +742,8 @@ def api_create_subscription():
     if not uid:
         return jsonify({'ok': False, 'error': 'Authentication required'}), 401
     data = request.get_json(force=True)
-    price_id = data.get('price_id') or os.getenv('STRIPE_TEST_PRICE_ID')
+    # prefer STRIPE_PRICE_ID (canonical) but fall back to legacy STRIPE_TEST_PRICE_ID
+    price_id = data.get('price_id') or os.getenv('STRIPE_PRICE_ID') or os.getenv('STRIPE_TEST_PRICE_ID')
     payment_method = data.get('payment_method')
     if not price_id:
         return jsonify({'ok': False, 'error': 'price_id required'}), 400
@@ -666,10 +754,17 @@ def api_create_subscription():
     db = get_db()
     user = db.execute('SELECT id, email, stripe_customer_id FROM users WHERE id = ?', (uid,)).fetchone()
     try:
-        customer_id = user.get('stripe_customer_id') if user else None
+        # sqlite3.Row doesn't implement .get(); convert to mapping-style access
+        customer_id = user['stripe_customer_id'] if user and 'stripe_customer_id' in user.keys() else None
         if not customer_id:
-            # create customer
-            cust = stripe.Customer.create(email=user['email'] if user else None)
+            # create customer (pass email only if available)
+            cust_kwargs = {}
+            try:
+                if user and 'email' in user.keys() and user['email']:
+                    cust_kwargs['email'] = user['email']
+            except Exception:
+                pass
+            cust = stripe.Customer.create(**cust_kwargs)
             customer_id = cust['id']
             try:
                 db.execute('UPDATE users SET stripe_customer_id = ? WHERE id = ?', (customer_id, uid))
@@ -774,7 +869,7 @@ def debug_session():
         try:
             db = get_db()
             row = db.execute('SELECT id, email, is_paid FROM users WHERE id = ?', (uid,)).fetchone()
-            out['current_user'] = dict(row) if row else {}
+            out['current_user'] = row_to_mapping(row) if row else {}
         except Exception:
             out['current_user'] = {}
     return jsonify({'ok': True, 'debug': out})
@@ -809,6 +904,7 @@ def dev_create_user():
     email = (data.get('email') or '').strip().lower()
     password = data.get('password') or 'password'
     is_paid = bool(data.get('is_paid', False))
+    free_sample_used = bool(data.get('free_sample_used', False))
     if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
         return jsonify({'ok': False, 'error': 'Invalid email'}), 400
     db = get_db()
@@ -818,14 +914,25 @@ def dev_create_user():
     pw_hash = generate_password_hash(password, method='pbkdf2:sha256')
     try:
         if row:
-            db.execute('UPDATE users SET password_hash = ?, is_paid = ? WHERE id = ?', (pw_hash, 1 if is_paid else 0, uid))
+            db.execute('UPDATE users SET password_hash = ?, is_paid = ?, free_sample_used = ? WHERE id = ?', (pw_hash, 1 if is_paid else 0, 1 if free_sample_used else 0, uid))
         else:
-            db.execute('INSERT INTO users (id, email, password_hash, is_paid) VALUES (?, ?, ?, ?)', (uid, email, pw_hash, 1 if is_paid else 0))
+            db.execute('INSERT INTO users (id, email, password_hash, is_paid, free_sample_used) VALUES (?, ?, ?, ?, ?)', (uid, email, pw_hash, 1 if is_paid else 0, 1 if free_sample_used else 0))
         db.commit()
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
     session['user_id'] = uid
-    return jsonify({'ok': True, 'id': uid, 'email': email, 'is_paid': is_paid})
+    try:
+        row = db.execute('SELECT id, email, is_paid, free_sample_used FROM users WHERE id = ?', (uid,)).fetchone()
+    except Exception:
+        row = None
+    payload = {
+        'ok': True,
+        'id': uid,
+        'email': email,
+        'is_paid': bool(row['is_paid']) if row else is_paid,
+        'free_sample_used': bool(row['free_sample_used']) if row and 'free_sample_used' in row.keys() else free_sample_used
+    }
+    return jsonify(payload)
 
 
 @app.post('/api/request-password-reset')
@@ -967,6 +1074,15 @@ def get_profile():
 
 @app.post("/api/generate")
 def api_generate():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'ok': False, 'error': 'Authentication required'}), 401
+
+    db = get_db()
+    user = db.execute('SELECT id, is_paid, free_sample_used FROM users WHERE id = ?', (uid,)).fetchone()
+    if not user:
+        return jsonify({'ok': False, 'error': 'Authentication required'}), 401
+
     data = request.get_json(force=True)
     profile_id = session.get("profile_id")
     days = int(data.get("days", 30))
@@ -987,31 +1103,29 @@ def api_generate():
     company = data.get("company", "")
     details = data.get("details", {}) or {}
 
-    # enforce server-side gating for 7-day (or longer) generation
-    flags = load_flags()
-    gate7 = bool(flags.get('gate7DayToPaid'))
-    if gate7 and days >= 7:
-        uid = session.get('user_id')
-        if not uid:
-            return jsonify({'ok': False, 'error': 'Authentication required for this feature'}), 401
-        db = get_db()
-        user = db.execute('SELECT is_paid FROM users WHERE id = ?', (uid,)).fetchone()
-        if not user or not user['is_paid']:
-            return jsonify({'ok': False, 'error': 'Paid subscription required for this feature'}), 403
-
-    # Reels gating & quota: if the requested platforms will produce reels, ensure user is paid and under quota
-    reel_platforms = set(['instagram', 'tiktok', 'short_video'])
+    reel_platforms = set(['tiktok', 'short_video'])
     requested_reel_platforms = [p for p in (platforms or []) if p and p.lower() in reel_platforms]
     reels_requested = max(0, len(requested_reel_platforms)) * int(days)
-    if reels_requested > 0:
-        uid = session.get('user_id')
-        if not uid:
-            return jsonify({'ok': False, 'error': 'Authentication required to generate reels'}), 401
-        db = get_db()
-        user = db.execute('SELECT is_paid FROM users WHERE id = ?', (uid,)).fetchone()
-        if not user or not user['is_paid']:
+    is_paid = bool(user['is_paid'])
+    free_sample_used = bool(user['free_sample_used'])
+    is_reel_request = reels_requested > 0
+    is_sample_request = days <= 1 and not is_reel_request
+    consume_free_sample = False
+
+    if not is_paid:
+        if is_reel_request:
             return jsonify({'ok': False, 'error': 'Paid subscription required to generate reels'}), 403
-        # check monthly quota (env var REELS_QUOTA_MONTHLY default 30)
+        if days > 1:
+            return jsonify({'ok': False, 'error': 'Paid subscription required to generate multi-day plans'}), 403
+        if free_sample_used:
+            return jsonify({'ok': False, 'error': 'You already used your free sample. Subscribe to unlock unlimited posts.'}), 403
+        if not is_sample_request:
+            return jsonify({'ok': False, 'error': 'Paid subscription required for this feature'}), 403
+        consume_free_sample = True
+
+    if is_reel_request:
+        if not is_paid:
+            return jsonify({'ok': False, 'error': 'Paid subscription required to generate reels'}), 403
         quota = int(os.getenv('REELS_QUOTA_MONTHLY', '30'))
         period = date.today().strftime('%Y-%m')
         row = db.execute('SELECT reels_generated FROM generation_usage WHERE user_id = ? AND period = ?', (uid, period)).fetchone()
@@ -1033,17 +1147,22 @@ def api_generate():
         company=company
     )
 
+    if consume_free_sample:
+        try:
+            db.execute('UPDATE users SET free_sample_used = 1 WHERE id = ?', (uid,))
+            db.commit()
+        except Exception:
+            pass
+
     # if reels were requested, increment usage after successful generation
     if reels_requested > 0:
         try:
-            db = get_db()
             period = date.today().strftime('%Y-%m')
-            current_uid = session.get('user_id')
-            existing = db.execute('SELECT reels_generated FROM generation_usage WHERE user_id = ? AND period = ?', (current_uid, period)).fetchone()
+            existing = db.execute('SELECT reels_generated FROM generation_usage WHERE user_id = ? AND period = ?', (uid, period)).fetchone()
             if existing:
-                db.execute('UPDATE generation_usage SET reels_generated = reels_generated + ? WHERE user_id = ? AND period = ?', (reels_requested, current_uid, period))
+                db.execute('UPDATE generation_usage SET reels_generated = reels_generated + ? WHERE user_id = ? AND period = ?', (reels_requested, uid, period))
             else:
-                db.execute('INSERT INTO generation_usage (id, user_id, period, reels_generated) VALUES (?, ?, ?, ?)', (str(uuid.uuid4()), current_uid, period, reels_requested))
+                db.execute('INSERT INTO generation_usage (id, user_id, period, reels_generated) VALUES (?, ?, ?, ?)', (str(uuid.uuid4()), uid, period, reels_requested))
             db.commit()
         except Exception:
             # non-fatal: do not fail generation if usage increment fails

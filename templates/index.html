@@ -116,24 +116,33 @@
         <div class="text-xs text-slate-500">Content pack: <span id="modal-content-version">loading…</span></div>
       </div>
       <div class="flex gap-2">
-        <button id="modal-generate-1" class="btn-ghost w-full">Generate 1‑day sample</button>
-        <button id="modal-generate-reels" class="btn-ghost w-full">Generate 5‑reel sample</button>
-        <button id="modal-generate-7" class="btn-primary w-full hidden">Generate 7‑day plan (paid)</button>
+        <button id="modal-generate-1" class="btn-ghost w-full">Generate 1-day sample</button>
+        <button id="modal-generate-reels" class="btn-ghost w-full">Generate 5-reel sample</button>
+        <button id="modal-generate-7" class="btn-primary w-full hidden">Generate 7-day plan (paid)</button>
       </div>
+      <p class="text-xs text-slate-500 mt-3">Each account includes one free 1-day sample after signup.</p>
     </aside>
     <!-- Paywall modal (hidden by default) -->
     <div id="paywall-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="paywall-title">
       <div class="bg-white rounded-lg p-6 w-full max-w-md" tabindex="-1">
-        <h3 id="paywall-title" class="text-lg font-semibold mb-2">Upgrade for a 7‑day plan</h3>
-        <p class="text-sm text-slate-600 mb-4">Get a full 7‑day social media plan, reel scripts, and thumbnails — delivered instantly. Cancel anytime.</p>
+  <h3 id="paywall-title" class="text-lg font-semibold mb-2">Unlock unlimited plans</h3>
+  <p class="text-sm text-slate-600 mb-4">Subscribe for weekly and monthly content drops, reels, and every new upgrade. Cancel anytime.</p>
         <div id="paywall-message" class="text-sm text-red-600 mb-2 hidden" role="status" aria-live="polite"></div>
         <div class="mb-4">
           <div class="text-sm">Monthly subscription</div>
-          <div class="text-2xl font-bold">$14 / month</div>
+          <div class="text-2xl font-bold" id="paywall-price">loading…</div>
+          <div class="text-xs text-slate-500" id="paywall-price-desc"></div>
+        </div>
+        <div id="paywall-signup-area" class="mb-4">
+          <div class="text-sm font-medium mb-1">Create an account to start your membership</div>
+          <input id="paywall-email" class="w-full input mb-2" type="email" placeholder="Email address" />
+          <input id="paywall-password" class="w-full input mb-2" type="password" placeholder="Choose a password" />
+          <div id="paywall-signup-error" class="text-sm text-red-600 mb-2 hidden" aria-live="polite"></div>
+          <div class="text-xs text-slate-500">Already have an account? <button id="paywall-signin-link" type="button" class="text-brand underline">Sign in</button></div>
         </div>
         <div class="flex gap-2">
           <button id="paywall-cancel" class="btn-secondary">Cancel</button>
-          <button id="paywall-subscribe" class="btn-primary" data-loading-text="Processing…">Start free trial</button>
+          <button id="paywall-subscribe" class="btn-primary" data-loading-text="Processing…">Subscribe now</button>
         </div>
           <div id="stripe-elements-wrap" class="mt-4 hidden">
             <label class="block text-sm font-medium mb-2">Card details</label>

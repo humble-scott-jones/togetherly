@@ -15,6 +15,7 @@ import app as togetherly_app
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    monkeypatch.setenv('ALLOW_DEV_DEBUG', '1')
     # Use a temporary database file for isolation
     db_file = tmp_path / "test_togetherly.db"
     togetherly_app.DB_PATH = str(db_file)

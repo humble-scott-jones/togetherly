@@ -1,6 +1,70 @@
 let CFG = null;
 let FLAGS = null;
 
+function setCurrentUser(user){
+  if (user && user.id){
+    window.CURRENT_USER = {
+      id: user.id,
+      email: user.email,
+      is_paid: !!user.is_paid,
+      free_sample_used: !!user.free_sample_used
+    };
+  } else {
+    window.CURRENT_USER = null;
+  }
+  renderAuthUi();
+  updateAccessUi();
+}
+
+async function refreshCurrentUser(){
+  try{
+    const res = await fetch('/api/current_user', { credentials: 'include' });
+    if (!res.ok){ setCurrentUser(null); return null; }
+    const data = await res.json().catch(()=>null);
+    if (data && data.id){ setCurrentUser(data); }
+    else { setCurrentUser(null); }
+    return window.CURRENT_USER;
+  }catch(e){ return null; }
+}
+
+function isLoggedIn(){
+  return !!(window.CURRENT_USER && window.CURRENT_USER.id);
+}
+
+function updateAccessUi(){
+  const user = window.CURRENT_USER || {};
+  const isPaid = !!user.is_paid;
+  const sampleUsed = !!user.free_sample_used;
+  const sampleButtons = [document.getElementById('btn-sample'), document.getElementById('modal-generate-1')];
+  sampleButtons.forEach(btn => {
+    if (!btn) return;
+    if (!isPaid && sampleUsed){
+      btn.disabled = true;
+      btn.classList.add('opacity-60');
+      btn.textContent = 'Free sample used';
+    } else {
+      btn.disabled = false;
+      btn.classList.remove('opacity-60');
+      if (btn.id === 'btn-sample' || btn.id === 'modal-generate-1') btn.textContent = 'Generate 1-day sample';
+    }
+  });
+  const gatedButtons = [document.getElementById('btn-30'), document.getElementById('modal-generate-7'), document.getElementById('modal-generate-30'), document.getElementById('modal-generate-reels')];
+  gatedButtons.forEach(btn => {
+    if (!btn) return;
+    if (!isPaid){
+      btn.dataset.requiresPaid = '1';
+      if (btn.id === 'modal-generate-7') btn.textContent = 'Unlock 7-day plan';
+      if (btn.id === 'modal-generate-30' || btn.id === 'btn-30') btn.textContent = 'Unlock 30-day plan';
+      if (btn.id === 'modal-generate-reels') btn.textContent = 'Unlock reels plan';
+    } else {
+      delete btn.dataset.requiresPaid;
+      if (btn.id === 'modal-generate-7') btn.textContent = 'Generate 7-day plan';
+      if (btn.id === 'modal-generate-30' || btn.id === 'btn-30') btn.textContent = 'Generate 30-day plan';
+      if (btn.id === 'modal-generate-reels') btn.textContent = 'Generate 5-reel sample';
+    }
+  });
+}
+
 async function loadFlags(){
   try{
     const r = await fetch('/static/content/flags.json', { cache: 'no-store' });
@@ -14,6 +78,33 @@ async function loadConfig(){
   CFG = await res.json();
   window.CFG = CFG; // handy for debugging
   window.FLAGS = FLAGS;
+
+  // populate paywall price UI if present
+  try{
+    const priceEl = document.getElementById('paywall-price');
+    const descEl = document.getElementById('paywall-price-desc');
+    if (priceEl && CFG && CFG.pricing && CFG.pricing.monthly_display) priceEl.textContent = CFG.pricing.monthly_display;
+    if (descEl && CFG && CFG.pricing && CFG.pricing.description) descEl.textContent = CFG.pricing.description;
+  }catch(e){/* ignore */}
+  // prefer authoritative price from server (Stripe) when available
+  try{
+    const r2 = await fetch('/api/stripe-price', { credentials: 'include' });
+    if (r2.ok){
+      const j2 = await r2.json().catch(()=>null);
+      const priceEl = document.getElementById('paywall-price');
+      const descEl = document.getElementById('paywall-price-desc');
+      if (j2 && j2.ok && j2.price && j2.price.display){
+        if (priceEl) priceEl.textContent = j2.price.display;
+        // show product name or keep description
+        if (descEl) descEl.textContent = (j2.price.product && j2.price.product.name) ? j2.price.product.name : (CFG && CFG.pricing && CFG.pricing.description) || '';
+        // also update subscribe button copy if present
+        try{
+          const subBtn = document.getElementById('paywall-subscribe');
+          if (subBtn) subBtn.innerHTML = `Subscribe for ${j2.price.display}`;
+        }catch(e){/* ignore */}
+      }
+    }
+  }catch(e){ /* ignore */ }
 
   // render using CFG
   renderIndustryChoices(CFG.industries || []);
@@ -82,12 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }catch(e){/* ignore */}
     // query server for current user
     try{
-  const r2 = await fetch('/api/current_user', { credentials: 'include' });
-      if (r2.ok){
-        const u = await r2.json();
-        if (u && u.id){ window.CURRENT_USER = u; }
-      }
-      renderAuthUi();
+      await refreshCurrentUser();
     }catch(e){/* ignore */}
   })();
   // normalize company on blur
@@ -108,10 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
       try{
         const r = await fetch('/__dev__/create_user', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pw, is_paid: isPaid }) });
         const j = await r.json().catch(()=>null);
-        if (!r.ok){ alert((j && j.error) || 'Could not create dev user'); return; }
-        window.CURRENT_USER = j;
-        renderAuthUi();
-        showToast('Dev user created and signed in');
+  if (!r.ok){ alert((j && j.error) || 'Could not create dev user'); return; }
+  setCurrentUser(j);
+  showToast('Dev user created and signed in');
       }catch(e){ alert('Dev create failed'); }
       finally{ setButtonLoading(btn, false); }
     });
@@ -179,6 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('reset-back')?.addEventListener('click', () => openAuthModal('login'));
   document.getElementById('confirm-back')?.addEventListener('click', () => openAuthModal('login'));
 
+  // paywall sign-in link (for users who already have an account)
+  const paywallSigninLink = document.getElementById('paywall-signin-link');
+  if (paywallSigninLink){
+    paywallSigninLink.addEventListener('click', () => { openAuthModal('login'); });
+  }
+
   // login submit
   document.getElementById('login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -190,7 +281,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const r = await fetch('/api/login', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pw }) });
       const j = await r.json().catch(()=>null);
       if (!r.ok){ showAuthMessage((j && j.error) || 'Sign in failed'); setButtonLoading(null,false); return; }
-      window.CURRENT_USER = j; renderAuthUi(); closeAuthModal(); showToast('Signed in');
+  setCurrentUser(j); closeAuthModal(); showToast('Signed in');
+      // If the paywall modal is open, continue to the subscribe flow automatically
+      try{
+        const payModal = document.getElementById('paywall-modal');
+        if (payModal && !payModal.classList.contains('hidden')){
+          const subBtn = document.getElementById('paywall-subscribe');
+          if (subBtn) subBtn.click();
+        }
+      }catch(e){}
     }catch(err){ showAuthMessage('Sign in failed'); }
     finally{ setButtonLoading(null,false); }
   });
@@ -205,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const r = await fetch('/api/signup', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pw }) });
       const j = await r.json().catch(()=>null);
       if (!r.ok){ showAuthMessage((j && j.error) || 'Sign up failed'); return; }
-      window.CURRENT_USER = j; renderAuthUi(); closeAuthModal(); showToast('Account created');
+  setCurrentUser(j); closeAuthModal(); showToast('Account created');
     }catch(err){ showAuthMessage('Sign up failed'); }
     finally{ setButtonLoading(null,false); }
   });
@@ -249,6 +348,17 @@ function showAuthMessage(msg){ const el = document.getElementById('auth-message'
 function clearAuthMessage(){ const el = document.getElementById('auth-message'); if (el){ el.textContent=''; el.classList.add('hidden'); } }
 function showPaywallMessage(msg){ const el = document.getElementById('paywall-message'); if (el){ el.textContent = msg; el.classList.remove('hidden'); } }
 function clearPaywallMessage(){ const el = document.getElementById('paywall-message'); if (el){ el.textContent=''; el.classList.add('hidden'); } }
+function showPaywall(message){
+  const payModal = document.getElementById('paywall-modal');
+  if (!payModal){
+    alert(message || 'Paid subscription required');
+    return;
+  }
+  if (message){ showPaywallMessage(message); }
+  else clearPaywallMessage();
+  payModal.classList.remove('hidden');
+  try{ ensureStripeElementsInitialized().catch(()=>{}); }catch(e){}
+}
 function showToast(msg){ const t = document.createElement('div'); t.className='fixed bottom-6 right-6 bg-slate-800 text-white px-4 py-2 rounded shadow'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.classList.add('opacity-0'), 2200); setTimeout(()=>t.remove(), 2800); }
 
 function setButtonLoading(btn, loading){
@@ -405,6 +515,38 @@ function renderPlatformChoices(list){
   });
 }
 
+// Initialize Stripe Elements if publishable key is available. Safe to call multiple times.
+async function ensureStripeElementsInitialized(){
+  try{
+    if (window.STRIPE && window.__card) return true;
+    const r = await fetch('/api/stripe-publishable-key');
+    if (!r.ok) return false;
+    const j = await r.json().catch(()=>null);
+    if (!j || !j.ok || !j.publishableKey) return false;
+    const pk = j.publishableKey;
+    if (!window.STRIPE){
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/';
+      document.head.appendChild(script);
+      await new Promise(res => { script.onload = res; script.onerror = () => res(); });
+      window.STRIPE = Stripe(pk);
+    }
+    const elements = window.STRIPE.elements();
+    if (!window.__card){
+      window.__card = elements.create('card');
+      const wrap = document.getElementById('stripe-elements-wrap');
+      if (wrap) wrap.classList.remove('hidden');
+      window.__card.mount('#card-element');
+      window.__card.on('change', (ev) => {
+        const ce = document.getElementById('card-errors');
+        if (!ev.complete && ev.error){ ce.textContent = ev.error.message; ce.classList.remove('hidden'); }
+        else { if (ce){ ce.textContent = ''; ce.classList.add('hidden'); } }
+      });
+    }
+    return true;
+  }catch(e){ console.error('ensureStripeElementsInitialized failed', e); return false; }
+}
+
 function renderIndustryQuestions(key){
   const wrap = document.getElementById("industry-questions");
   wrap.innerHTML = "";
@@ -535,6 +677,7 @@ async function saveProfile(){
 
   const resp = await fetch("/api/profile?content_version=" + encodeURIComponent(version), {
     method: "POST",
+    credentials: 'include',
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify(answers)
   });
@@ -624,13 +767,24 @@ function clearFormError(){
   if (el){ el.textContent = ''; el.classList.add('hidden'); }
 }
 
-if (btnSample) btnSample.addEventListener("click", async ()=>{
-  await maybeSaveDefaults();
-  renderPosts(await generate(1));
+if (btnSample) btnSample.addEventListener("click", async () =>{
+  if (!isLoggedIn()){ openAuthModal('signup'); return; }
+  try{
+    await maybeSaveDefaults();
+    const data = await generate(1);
+    renderPosts(data);
+    await refreshCurrentUser();
+  }catch(err){ if (err && err.message) console.debug(err.message); }
 });
-if (btn30) btn30.addEventListener("click", async ()=>{
-  await maybeSaveDefaults();
-  renderPosts(await generate(30));
+if (btn30) btn30.addEventListener("click", async () =>{
+  if (!isLoggedIn()){ openAuthModal('signup'); return; }
+  if (!window.CURRENT_USER || !window.CURRENT_USER.is_paid){ showPaywall('Subscribe to unlock multi-day plans.'); return; }
+  try{
+    await maybeSaveDefaults();
+    const data = await generate(30);
+    renderPosts(data);
+    await refreshCurrentUser();
+  }catch(err){ if (err && err.message) console.debug(err.message); }
 });
 
 async function maybeSaveDefaults(){
@@ -641,13 +795,64 @@ async function maybeSaveDefaults(){
 }
 
 async function generate(days){
-  const res = await fetch("/api/generate", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ ...answers, days })
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  // allow an optional override for platforms or other opts by passing
+  // generate(days, { platforms: ['short_video'] })
+  const opts = arguments[1] || {};
+  const payload = Object.assign({}, answers, { days }, opts);
+  let res;
+  try{
+    res = await fetch("/api/generate", {
+      method: "POST",
+      credentials: 'include',
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+  }catch(e){
+    // network-level error (server down, CORS, connection refused)
+    const msg = 'Network error: could not reach the server. Ensure the dev server is running and your browser can reach http://localhost:'+ (window.location.port || '5001') +'.';
+    showFormError(msg);
+    console.error('generate() network error', e);
+    throw new Error(msg);
+  }
+
+  // handle auth/paywall responses gracefully in the UI
+  if (res.status === 401){
+    // not authenticated -> open auth modal
+    openAuthModal('login');
+    throw new Error('Authentication required');
+  }
+  if (res.status === 403){
+    let msg = 'Paid subscription required';
+    try{
+      const payload = await res.json().catch(()=>null);
+      if (payload && payload.error) msg = payload.error;
+    }catch(e){}
+    showPaywall(msg);
+    throw new Error(msg);
+  }
+
+  if (!res.ok){
+    // try to parse JSON error body for a helpful message
+    try{
+      const body = await res.json().catch(()=>null);
+      const msg = (body && body.error) ? body.error : `Server error: HTTP ${res.status}`;
+      showFormError(msg);
+      throw new Error(msg);
+    }catch(e){
+      const msg = `Server error: HTTP ${res.status}`;
+      showFormError(msg);
+      throw new Error(msg);
+    }
+  }
+
+  try{
+    return await res.json();
+  }catch(e){
+    const msg = 'Received invalid response from server.';
+    showFormError(msg);
+    console.error('generate() invalid json', e);
+    throw new Error(msg);
+  }
 }
 
 function renderPosts(data){
@@ -870,39 +1075,33 @@ document.addEventListener('DOMContentLoaded', () => {
   xBtn?.addEventListener('click', () => { if (inline) inline.classList.add('hidden'); if (modal) modal.classList.add('hidden'); });
 
   gen1Btn?.addEventListener('click', async () => {
+    if (!isLoggedIn()){ openAuthModal('signup'); return; }
+    if (!window.CURRENT_USER?.is_paid && window.CURRENT_USER?.free_sample_used){ showPaywall('You already used your free sample. Subscribe to keep going.'); return; }
     if (inline) inline.classList.add('hidden');
     if (modal) modal.classList.add('hidden');
     try{
       await maybeSaveDefaults();
       const data = await generate(1);
       renderPosts(data);
-    }catch(err){ console.error('generate(1) failed', err); }
+      await refreshCurrentUser();
+    }catch(err){ if (err && err.message) console.debug(err.message); }
   });
   genReelsBtn?.addEventListener('click', async () => {
-    // generate a short reels-only sample (5 reels)
+    if (!isLoggedIn()){ openAuthModal('signup'); return; }
+    if (!window.CURRENT_USER?.is_paid){ showPaywall('Subscribe to unlock reels.'); return; }
     if (inline) inline.classList.add('hidden');
     if (modal) modal.classList.add('hidden');
     try{
       clearFormError();
       await maybeSaveDefaults();
-      // call generate endpoint requesting only short_video platform
-      const res = await fetch('/api/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...answers, days: 5, platforms: ['short_video'] }) });
-      if (!res.ok){ const j = await res.json().catch(()=>null); throw new Error((j && j.error) || ('HTTP ' + res.status)); }
-      const data = await res.json();
+      const data = await generate(5, { platforms: ['short_video'] });
       renderPosts(data);
-    }catch(err){ console.error('generate(reels) failed', err); }
+      await refreshCurrentUser();
+    }catch(err){ if (err && err.message) console.debug(err.message); }
   });
   gen7Btn?.addEventListener('click', async () => {
-    // gate to paid users if the flag is set
-    const gate = (window.FLAGS && window.FLAGS.gate7DayToPaid) ? true : false;
-    const userPaid = window.CURRENT_USER && window.CURRENT_USER.is_paid;
-    if (gate && !userPaid){
-      // open paywall modal instead of inline error
-      const modal = document.getElementById('paywall-modal');
-      if (modal) modal.classList.remove('hidden');
-      return;
-    }
-    // proceed
+    if (!isLoggedIn()){ openAuthModal('signup'); return; }
+    if (!window.CURRENT_USER?.is_paid){ showPaywall('Subscribe to unlock multi-day plans.'); return; }
     if (inline) inline.classList.add('hidden');
     if (modal) modal.classList.add('hidden');
     try{
@@ -910,17 +1109,21 @@ document.addEventListener('DOMContentLoaded', () => {
       await maybeSaveDefaults();
       const data = await generate(7);
       renderPosts(data);
-    }catch(err){ console.error('generate(7) failed', err); }
+      await refreshCurrentUser();
+    }catch(err){ if (err && err.message) console.debug(err.message); }
   });
 
   gen30Btn?.addEventListener('click', async () => {
+    if (!isLoggedIn()){ openAuthModal('signup'); return; }
+    if (!window.CURRENT_USER?.is_paid){ showPaywall('Subscribe to unlock multi-day plans.'); return; }
     if (inline) inline.classList.add('hidden');
     if (modal) modal.classList.add('hidden');
     try{
       await maybeSaveDefaults();
       const data = await generate(30);
       renderPosts(data);
-    }catch(err){ console.error('generate(30) failed', err); }
+      await refreshCurrentUser();
+    }catch(err){ if (err && err.message) console.debug(err.message); }
   });
   // show 7-day button based on flags
   try{ if (window.FLAGS && window.FLAGS.show7Day){ gen7Btn?.classList.remove('hidden'); } }catch(e){}
@@ -930,55 +1133,97 @@ document.addEventListener('DOMContentLoaded', () => {
   const paySubscribe = document.getElementById('paywall-subscribe');
   payCancel?.addEventListener('click', () => { if (payModal) payModal.classList.add('hidden'); });
   paySubscribe?.addEventListener('click', async () => {
-    // show card input area and initialize Stripe Elements if needed
-    const wrap = document.getElementById('stripe-elements-wrap');
-    if (wrap) wrap.classList.remove('hidden');
-    // ensure publishable key is loaded and Stripe is initialized
-    try{
-      if (!window.STRIPE){
-        const r = await fetch('/api/stripe-publishable-key');
-        if (!r.ok) throw new Error('Could not fetch publishable key');
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error || 'No publishable key');
-        const pk = j.publishableKey;
-        const script = document.createElement('script');
-        script.src = 'https://js.stripe.com/v3/';
-        document.head.appendChild(script);
-        await new Promise(res => { script.onload = res; script.onerror = () => res(); });
-        window.STRIPE = Stripe(pk);
-        const elements = window.STRIPE.elements();
-        window.__card = elements.create('card');
-        window.__card.mount('#card-element');
-        window.__card.on('change', (ev) => {
-          const ce = document.getElementById('card-errors');
-          if (!ev.complete && ev.error){ ce.textContent = ev.error.message; ce.classList.remove('hidden'); }
-          else { ce.textContent = ''; ce.classList.add('hidden'); }
-        });
-      }
-      // create a PaymentMethod via Stripe.js using the card element
-      setButtonLoading(paySubscribe, true);
-      // choose price id from env/config if available
-      const priceId = (window.CFG && window.CFG.stripe_price_id) ? window.CFG.stripe_price_id : null;
-      const pmRes = await window.STRIPE.createPaymentMethod({ type: 'card', card: window.__card });
-      if (pmRes.error){ const ce = document.getElementById('card-errors'); if (ce){ ce.textContent = pmRes.error.message; ce.classList.remove('hidden'); } setButtonLoading(paySubscribe,false); return; }
-      const payment_method = pmRes.paymentMethod.id;
-      // call server to create subscription
-      const r2 = await fetch('/api/create-subscription', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ price_id: priceId, payment_method }) });
-      const j2 = await r2.json().catch(()=>null);
-      if (!r2.ok || !j2 || !j2.ok){ alert((j2 && j2.error) || 'Subscription creation failed'); setButtonLoading(paySubscribe,false); return; }
-      // if server returned a client_secret, confirm payment on the client
-      if (j2.client_secret){
-        const ci = await window.STRIPE.confirmCardPayment(j2.client_secret, { payment_method: payment_method });
-        if (ci.error){ alert(ci.error.message || 'Payment confirmation failed'); setButtonLoading(paySubscribe,false); return; }
-      }
-      // success: mark current user as paid in UI and close modal
-      window.CURRENT_USER = window.CURRENT_USER || {};
-      window.CURRENT_USER.is_paid = true;
-      renderAuthUi();
-      showToast('Subscription active');
-      const modal = document.getElementById('paywall-modal'); if (modal) modal.classList.add('hidden');
-    }catch(e){ console.error(e); alert('Subscription failed: ' + (e && e.message)); }
-    finally{ setButtonLoading(paySubscribe,false); }
+      // One-step signup + subscribe flow.
+      // If user isn't signed in, create account first using the paywall inputs, then proceed to initialize Elements and create subscription.
+      const wrap = document.getElementById('stripe-elements-wrap');
+      const emailInput = document.getElementById('paywall-email');
+      const passInput = document.getElementById('paywall-password');
+      const signupError = document.getElementById('paywall-signup-error');
+      clearPaywallMessage(); if (signupError) signupError.classList.add('hidden');
+
+      // helper to fallback to Checkout redirect
+      const checkoutFallback = async () => {
+        try{
+          setButtonLoading(paySubscribe, true);
+          const priceId = null;
+          const r2 = await fetch('/api/create-checkout-session', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ price_id: priceId, success_url: window.location.href, cancel_url: window.location.href }) });
+          const j = await r2.json().catch(()=>null);
+          if (r2.ok && j && j.url){ window.location.href = j.url; return true; }
+        }catch(e){ console.error('checkout redirect failed', e); }
+        finally{ setButtonLoading(paySubscribe, false); }
+        return false;
+      };
+
+      try{
+        // If user not signed in, attempt to sign them up first using supplied email/password.
+        if (!window.CURRENT_USER || !window.CURRENT_USER.id){
+          const email = emailInput ? emailInput.value.trim() : '';
+          const pw = passInput ? passInput.value : '';
+          if (!email || !pw){
+            if (signupError){ signupError.textContent = 'Please provide an email and password to create an account.'; signupError.classList.remove('hidden'); }
+            else showPaywallMessage('Please sign up to continue');
+            return;
+          }
+          setButtonLoading(paySubscribe, true);
+          const r = await fetch('/api/signup', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pw }) });
+          const j = await r.json().catch(()=>null);
+      if (!r.ok){
+                const msg = (j && j.error) ? j.error : 'Sign up failed';
+                // if server returned structured field errors, prioritize those
+                if (j && j.errors){
+                  const vals = Object.values(j.errors).filter(Boolean);
+                  if (vals.length) signupError.textContent = vals.join(' — ');
+                  else signupError.textContent = msg;
+                } else {
+                  if (signupError) signupError.textContent = msg;
+                }
+                if (signupError) signupError.classList.remove('hidden');
+            else showPaywallMessage(msg);
+            setButtonLoading(paySubscribe, false);
+            return;
+          }
+          // success — server should set session cookie; update client state
+          setCurrentUser(j); showToast('Account created');
+              // disable signup inputs to prevent duplicate submissions
+              try{ if (emailInput) { emailInput.disabled = true; emailInput.classList.add('opacity-50'); } if (passInput) { passInput.disabled = true; passInput.classList.add('opacity-50'); } }catch(e){}
+              setButtonLoading(paySubscribe, false);
+        }
+
+        // Initialize Elements (prefer embedded flow)
+        const elementsReady = await ensureStripeElementsInitialized();
+        if (!elementsReady){
+          // fallback to Checkout redirect
+          await checkoutFallback();
+          return;
+        }
+
+        // create payment method with card element
+        setButtonLoading(paySubscribe, true);
+        const pmRes = await window.STRIPE.createPaymentMethod({ type: 'card', card: window.__card });
+        if (pmRes.error){ const ce = document.getElementById('card-errors'); if (ce){ ce.textContent = pmRes.error.message; ce.classList.remove('hidden'); } setButtonLoading(paySubscribe,false); return; }
+        const payment_method = pmRes.paymentMethod.id;
+
+        // create subscription server-side (server will use its configured STRIPE_TEST_PRICE_ID when price_id null)
+        const r2 = await fetch('/api/create-subscription', { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ price_id: null, payment_method }) });
+        const j2 = await r2.json().catch(()=>null);
+        if (!r2.ok || !j2 || !j2.ok){
+          const msg = (j2 && j2.error) ? j2.error : 'Subscription creation failed';
+          showPaywallMessage(msg);
+          setButtonLoading(paySubscribe,false);
+          return;
+        }
+        // if SCA required, confirm payment
+        if (j2.client_secret){
+          const ci = await window.STRIPE.confirmCardPayment(j2.client_secret, { payment_method: payment_method });
+          if (ci.error){ showPaywallMessage(ci.error.message || 'Payment confirmation failed'); setButtonLoading(paySubscribe,false); return; }
+        }
+
+        // success
+  await refreshCurrentUser();
+  showToast('Subscription active');
+        const pm = document.getElementById('paywall-modal'); if (pm) pm.classList.add('hidden');
+      }catch(e){ console.error(e); showPaywallMessage('Subscription failed — check console'); }
+      finally{ setButtonLoading(paySubscribe, false); }
   });
   // Manage subscription: attach to header account link via context menu (right-click)
   const headerLink = document.querySelector('header a[href="#"]');
@@ -986,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     // try to open portal
     try{
-      const r = await fetch('/api/create-portal-session', { method: 'POST' });
+  const r = await fetch('/api/create-portal-session', { method: 'POST', credentials: 'include' });
       if (!r.ok){ const j = await r.json().catch(()=>null); alert((j && j.error) || 'Could not open billing portal'); return; }
       const j = await r.json(); if (j && j.url) window.location.href = j.url;
     }catch(err){ console.error(err); alert('Could not open billing portal'); }

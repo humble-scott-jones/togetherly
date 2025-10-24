@@ -14,6 +14,14 @@ def test_generate_gating(client):
     # create and login user (unpaid)
     client.post('/api/signup', json={'email': 'noguy@example.com', 'password': 'pw12345'})
     client.post('/api/login', json={'email': 'noguy@example.com', 'password': 'pw12345'})
+
+    # unpaid user can generate exactly one free 1-day sample
+    sample = client.post('/api/generate', json={'days': 1})
+    assert sample.status_code == 200
+    repeat_sample = client.post('/api/generate', json={'days': 1})
+    assert repeat_sample.status_code == 403
+    cu_after_sample = client.get('/api/current_user').get_json()
+    assert cu_after_sample.get('free_sample_used') is True
     r = client.post('/api/generate', json={'days': 7})
     assert r.status_code == 403
 
