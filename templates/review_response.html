@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Review Response Generator - Togetherly</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-brand-sand text-slate-900">
+  <header class="px-6 py-5 bg-white/90 backdrop-blur border-b">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="logo-gradient"></div>
+        <h1 class="text-xl font-semibold tracking-tight">Togetherly</h1>
+      </div>
+      <div class="flex items-center gap-4">
+        <a class="text-sm text-brand hover:underline" href="/">Home</a>
+        <a class="text-sm text-brand hover:underline" href="/account">Account</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6">
+    <section class="card">
+      <h2 class="text-2xl font-bold mb-2">Review Response Generator</h2>
+      <p class="text-sm text-slate-600 mb-6">
+        Paste a customer review or rating, and we'll help you craft a professional response.
+      </p>
+
+      <form id="review-form" class="space-y-4">
+        <!-- Review Text -->
+        <div>
+          <label for="review-text" class="block text-sm font-medium text-slate-700 mb-1">
+            Customer Review <span class="text-red-500">*</span>
+          </label>
+          <textarea
+            id="review-text"
+            name="review_text"
+            rows="6"
+            required
+            placeholder="Paste the customer review here..."
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand resize-y"
+          ></textarea>
+        </div>
+
+        <!-- Tone Selection -->
+        <div>
+          <label for="tone" class="block text-sm font-medium text-slate-700 mb-1">
+            Response Tone
+          </label>
+          <select
+            id="tone"
+            name="tone"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
+          >
+            <option value="professional">Professional</option>
+            <option value="grateful">Grateful</option>
+            <option value="apologetic">Apologetic</option>
+            <option value="friendly">Friendly</option>
+          </select>
+        </div>
+
+        <!-- Company Name (Optional) -->
+        <div>
+          <label for="company-name" class="block text-sm font-medium text-slate-700 mb-1">
+            Company Name (Optional)
+          </label>
+          <input
+            type="text"
+            id="company-name"
+            name="company_name"
+            placeholder="Your company name"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
+          />
+        </div>
+
+        <!-- Generate Button -->
+        <div>
+          <button
+            type="submit"
+            id="generate-btn"
+            class="btn-primary w-full"
+          >
+            Generate Response
+          </button>
+        </div>
+      </form>
+
+      <!-- Loading State -->
+      <div id="loading" class="hidden mt-6 text-center">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
+        <p class="text-sm text-slate-600 mt-2">Generating response...</p>
+      </div>
+
+      <!-- Response Output -->
+      <div id="response-output" class="hidden mt-6">
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="text-lg font-semibold text-slate-900">Generated Response</h3>
+            <button
+              id="copy-btn"
+              class="text-sm text-brand hover:underline flex items-center gap-1"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copy
+            </button>
+          </div>
+          <p id="response-text" class="text-slate-700 whitespace-pre-wrap"></p>
+          <div id="response-meta" class="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-500"></div>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <div id="error-message" class="hidden mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+        <p class="text-sm text-red-800"></p>
+      </div>
+    </section>
+
+    <!-- Tips Section -->
+    <section class="card mt-6">
+      <h3 class="text-lg font-semibold mb-3">Tips for Great Review Responses</h3>
+      <ul class="space-y-2 text-sm text-slate-600">
+        <li class="flex gap-2">
+          <span class="text-brand">•</span>
+          <span><strong>Be timely:</strong> Respond to reviews within 24-48 hours</span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-brand">•</span>
+          <span><strong>Stay professional:</strong> Even with negative reviews, maintain a courteous tone</span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-brand">•</span>
+          <span><strong>Personalize:</strong> Reference specific details from the review</span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-brand">•</span>
+          <span><strong>Take action:</strong> For negative reviews, offer to resolve the issue offline</span>
+        </li>
+        <li class="flex gap-2">
+          <span class="text-brand">•</span>
+          <span><strong>Show gratitude:</strong> Thank all reviewers for taking the time to share feedback</span>
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('review-form');
+    const loading = document.getElementById('loading');
+    const responseOutput = document.getElementById('response-output');
+    const errorMessage = document.getElementById('error-message');
+    const generateBtn = document.getElementById('generate-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Hide previous results
+      responseOutput.classList.add('hidden');
+      errorMessage.classList.add('hidden');
+      
+      // Show loading
+      loading.classList.remove('hidden');
+      generateBtn.disabled = true;
+
+      try {
+        const formData = {
+          review_text: document.getElementById('review-text').value,
+          tone: document.getElementById('tone').value,
+          company_name: document.getElementById('company-name').value
+        };
+
+        const response = await fetch('/api/generate-review-response', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'Failed to generate response');
+        }
+
+        // Display response
+        document.getElementById('response-text').textContent = data.response;
+        
+        // Show metadata
+        let metaText = `Generated using ${data.method === 'ai' ? 'AI' : 'template'}`;
+        if (data.detected_sentiment) {
+          metaText += ` • Detected sentiment: ${data.detected_sentiment}`;
+        }
+        document.getElementById('response-meta').textContent = metaText;
+        
+        responseOutput.classList.remove('hidden');
+      } catch (error) {
+        errorMessage.querySelector('p').textContent = error.message;
+        errorMessage.classList.remove('hidden');
+      } finally {
+        loading.classList.add('hidden');
+        generateBtn.disabled = false;
+      }
+    });
+
+    // Copy to clipboard
+    document.getElementById('copy-btn').addEventListener('click', async () => {
+      const text = document.getElementById('response-text').textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copy-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Copied!';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+        }, 2000);
+      } catch (err) {
+        alert('Failed to copy to clipboard');
+      }
+    });
+  </script>
+</body>
+</html>
