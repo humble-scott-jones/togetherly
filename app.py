@@ -811,21 +811,21 @@ def api_admin_users():
     profiles_query = "SELECT id, industry, tone, platforms, brand_keywords, niche_keywords, company, created_at FROM profiles ORDER BY created_at DESC"
     profiles = db.execute(profiles_query).fetchall()
     
+    # Parse JSON fields helper function
+    def parse_json_field(val):
+        try:
+            if not val:
+                return []
+            return json.loads(val)
+        except Exception:
+            return []
+    
     # Build user data list
     user_data = []
     for user in users:
         # Get feedback count and subscription info
         sub_query = "SELECT status, current_period_end FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1"
         sub = db.execute(sub_query, (user['id'],)).fetchone()
-        
-        # Parse JSON fields from profiles if needed
-        def parse_json_field(val):
-            try:
-                if not val:
-                    return []
-                return json.loads(val)
-            except Exception:
-                return []
         
         user_info = {
             'id': user['id'],
