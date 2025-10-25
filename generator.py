@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 from typing import Optional
+import os
+import random
 
 PILLARS_BY_DEFAULT = [
     ("Educational", "Share a quick tip that solves a common problem for your audience."),
@@ -18,6 +20,142 @@ PLATFORM_HINTS = {
     "twitter": "Short & punchy. 1–2 tweets per post; avoid walls of text.",
 }
 
+# Natural language templates for different content pillars
+NATURAL_TEMPLATES = {
+    "Educational": {
+        "friendly": [
+            "Hey friends! 👋 Quick tip for you: {hint}",
+            "Here's something we've learned: {hint}",
+            "Pro tip alert! 🎯 {hint}",
+        ],
+        "professional": [
+            "{hint}",
+            "Industry insight: {hint}",
+            "Best practice: {hint}",
+        ],
+        "playful": [
+            "Psst... want to know a secret? 🤫 {hint}",
+            "Plot twist! {hint}",
+            "Hot take: {hint}",
+        ],
+        "inspirational": [
+            "Here's something powerful: {hint}",
+            "Let's talk growth: {hint}",
+            "Wisdom worth sharing: {hint}",
+        ],
+    },
+    "Behind-the-Scenes": {
+        "friendly": [
+            "Pulling back the curtain today! 🎬 {hint}",
+            "Ever wondered how we do it? {hint}",
+            "Sneak peek time! {hint}",
+        ],
+        "professional": [
+            "Transparency is key to trust. {hint}",
+            "Our process matters. {hint}",
+            "Inside look at our operations: {hint}",
+        ],
+        "playful": [
+            "Ready for a backstage pass? 🎭 {hint}",
+            "Shhh, we're letting you in on our secrets! {hint}",
+            "BTS magic happening here! ✨ {hint}",
+        ],
+        "inspirational": [
+            "The journey matters as much as the destination. {hint}",
+            "Real work, real passion. {hint}",
+            "Behind every result is a story. {hint}",
+        ],
+    },
+    "Testimonial/Social Proof": {
+        "friendly": [
+            "Love hearing success stories! 💙 {hint}",
+            "This made our day! {hint}",
+            "When our customers shine, we all shine! ⭐ {hint}",
+        ],
+        "professional": [
+            "Client success spotlight: {hint}",
+            "Proven outcomes: {hint}",
+            "Case study highlight: {hint}",
+        ],
+        "playful": [
+            "Bragging rights incoming! 🏆 {hint}",
+            "Plot twist: We have the coolest customers! {hint}",
+            "Mic drop moment! 🎤 {hint}",
+        ],
+        "inspirational": [
+            "Nothing inspires us more than your success. {hint}",
+            "Your story, our pride. {hint}",
+            "Success leaves clues. {hint}",
+        ],
+    },
+    "Product/Offer": {
+        "friendly": [
+            "Excited to share this with you! {hint}",
+            "Something special for you! ✨ {hint}",
+            "We've been working on something great! {hint}",
+        ],
+        "professional": [
+            "Introducing a solution designed with you in mind. {hint}",
+            "New offering available: {hint}",
+            "Enhance your results with: {hint}",
+        ],
+        "playful": [
+            "Ta-da! 🎉 {hint}",
+            "We made a thing! {hint}",
+            "New drop alert! 🚨 {hint}",
+        ],
+        "inspirational": [
+            "Created to empower you. {hint}",
+            "Every solution starts with understanding your needs. {hint}",
+            "Innovation meets purpose. {hint}",
+        ],
+    },
+    "Engagement": {
+        "friendly": [
+            "We want to hear from YOU! {hint}",
+            "Let's chat! {hint}",
+            "Quick question for you! {hint}",
+        ],
+        "professional": [
+            "Your input shapes our direction. {hint}",
+            "Industry discussion: {hint}",
+            "We value your expertise. {hint}",
+        ],
+        "playful": [
+            "Okay, settle a debate! {hint}",
+            "Pop quiz! 📝 {hint}",
+            "Spill the tea! ☕ {hint}",
+        ],
+        "inspirational": [
+            "Your voice creates change. {hint}",
+            "Together we learn, together we grow. {hint}",
+            "Every perspective adds value. {hint}",
+        ],
+    },
+    "Story": {
+        "friendly": [
+            "Story time! 📖 {hint}",
+            "Let us tell you about something that happened... {hint}",
+            "Here's a little story from us: {hint}",
+        ],
+        "professional": [
+            "Case in point: {hint}",
+            "Learning from experience: {hint}",
+            "Real-world application: {hint}",
+        ],
+        "playful": [
+            "Buckle up for this one! 🎢 {hint}",
+            "No joke, this actually happened! {hint}",
+            "Storytime with a twist! {hint}",
+        ],
+        "inspirational": [
+            "Every setback is a setup for a comeback. {hint}",
+            "From challenge to triumph: {hint}",
+            "The journey taught us everything. {hint}",
+        ],
+    },
+}
+
 def default_hashtags(industry: str, niche_keywords: list[str]):
     base = [f"#{industry.replace(' ', '')[:18]}", "#SmallBusiness", "#LocalBiz", "#BehindTheScenes", "#Tips"]
     extra = [f"#{k.strip().replace(' ', '')[:18]}" for k in niche_keywords if k.strip()]
@@ -34,32 +172,200 @@ def to_sentence_case(s: str):
     if not s: return s
     return s[0].upper() + s[1:]
 
+def naturalize_hint(hint: str, industry: str, brand_keywords: list[str]) -> str:
+    """Convert a generic hint into a more natural, industry-specific suggestion."""
+    # Map generic hints to more natural, actionable language
+    hint = hint.strip()
+    
+    # Create more natural conversational phrases
+    if "Share a quick tip" in hint or "solves a common problem" in hint:
+        options = [
+            f"did you know this trick can really transform your {industry.lower()} game?",
+            f"here's something that's been a total game-changer for our {industry.lower()} work!",
+            f"this simple hack makes such a difference!",
+            f"we discovered this recently and had to share!",
+        ]
+        return random.choice(options)
+    
+    elif "candid look" in hint or "process, team" in hint:
+        options = [
+            "we're pulling back the curtain and showing you exactly how we do what we do!",
+            "ever wondered what goes on behind the scenes? Here's a peek!",
+            "this is what a typical day looks like for us!",
+            "the real magic happens when you're not looking – check this out!",
+        ]
+        return random.choice(options)
+    
+    elif "customer quote" in hint or "outcome they achieved" in hint:
+        options = [
+            "one of our amazing customers shared this and we just had to tell you!",
+            "seeing results like this never gets old – here's what happened!",
+            "this testimonial made our whole week!",
+            "when our customers win, we ALL win!",
+        ]
+        return random.choice(options)
+    
+    elif "Highlight one offering" in hint or "benefits, price" in hint:
+        options = [
+            "we're excited to share something special with you!",
+            "this is one of our favorites and we think you're going to love it too!",
+            "ready for something amazing?",
+            "let us introduce you to something we've been working on!",
+        ]
+        return random.choice(options)
+    
+    elif "question" in hint or "poll" in hint or "spark comments" in hint:
+        options = [
+            "we have a question for you and we're really curious to hear what you think!",
+            "let's settle this once and for all – we need your opinion!",
+            "we're polling our community – what's YOUR take?",
+            "your input would be super valuable here!",
+        ]
+        return random.choice(options)
+    
+    elif "story" in hint or "challenge" in hint or "action → result" in hint:
+        options = [
+            "let us tell you about something that happened recently!",
+            "so this happened and we learned something important!",
+            "here's a quick story we think you'll relate to!",
+            "we faced a challenge recently – here's what we learned!",
+        ]
+        return random.choice(options)
+    
+    else:
+        # Fallback: make it more conversational
+        return f"we wanted to share something about {industry.lower()} with you!"
+
+def generate_cta(pillar_name: str, tone: str, platform: str) -> str:
+    """Generate a natural call-to-action based on pillar and tone."""
+    ctas = {
+        "Educational": {
+            "friendly": ["Try this and let us know how it works!", "Have you tried something similar?", 
+                        "Share your tips below!", "What's worked for you?"],
+            "professional": ["What strategies have you implemented?", "Share your insights below.",
+                           "Connect with us to discuss further.", "What are your thoughts?"],
+            "playful": ["Give it a shot! 🚀", "Your turn – what do you think?", 
+                       "Tag someone who needs this!", "Try it and report back! 😄"],
+            "inspirational": ["What will you try today?", "Share your journey below.", 
+                            "Let's grow together.", "What's your next step?"],
+        },
+        "Behind-the-Scenes": {
+            "friendly": ["What would you like to see next?", "Want more behind-the-scenes content?",
+                        "Drop a 👋 if you enjoyed this peek!", "Questions? We're here!"],
+            "professional": ["Want to learn more about our process?", "Connect with our team for details.",
+                           "Follow us for more insights.", "Reach out with questions."],
+            "playful": ["Cool, right?! 😎", "Mind. Blown. 🤯", "More of this? Say yes!",
+                       "Bet you didn't know that! 🎉"],
+            "inspirational": ["This is the work that matters.", "Behind every success is dedication.",
+                            "What's your behind-the-scenes story?", "The process is beautiful."],
+        },
+        "Testimonial/Social Proof": {
+            "friendly": ["What's your success story?", "Share your experience below!",
+                        "We'd love to celebrate your wins too!", "Tell us how it went!"],
+            "professional": ["Ready for similar results?", "Connect with us to get started.",
+                           "Schedule your consultation.", "Learn how we can help you."],
+            "playful": ["Your turn to shine! ⭐", "Drop your success story!", "Brag a little – we won't judge! 😉",
+                       "You could be next! 🎯"],
+            "inspirational": ["Your success inspires others.", "Share your story, inspire someone.",
+                            "What did you overcome?", "Every journey matters."],
+        },
+        "Product/Offer": {
+            "friendly": ["Interested? DM us!", "Check it out at the link in bio!",
+                        "Want to learn more? Just ask!", "Questions? Drop them below!"],
+            "professional": ["Contact us for details.", "Schedule a consultation today.",
+                           "Learn more at [link].", "Reach out to discuss pricing."],
+            "playful": ["Grab yours now! 🔥", "Don't sleep on this! ⚡", "You know you want it! 😄",
+                       "Link in bio – go go go! 🏃"],
+            "inspirational": ["Ready to transform your results?", "Take the next step today.",
+                            "Your success starts here.", "Invest in yourself."],
+        },
+        "Engagement": {
+            "friendly": ["Tell us in the comments!", "We're curious – what do YOU think?",
+                        "Comment below! 👇", "Let's discuss!"],
+            "professional": ["Share your perspective.", "Join the discussion.",
+                           "We value your input.", "What's your take?"],
+            "playful": ["Spill! We're waiting! ☕", "Comment or forever hold your peace! 😄",
+                       "Don't be shy – speak up! 💬", "All answers welcome! 🎉"],
+            "inspirational": ["Your voice matters.", "Contribute to the conversation.",
+                            "Share your wisdom.", "Let's learn together."],
+        },
+        "Story": {
+            "friendly": ["Have a similar story?", "Can you relate?",
+                        "What happened in your situation?", "Share your story!"],
+            "professional": ["What lessons have you learned?", "Share your experience.",
+                           "How have you handled similar situations?", "Your insights welcome."],
+            "playful": ["Top that! 😄", "Your turn – story time! 📖",
+                       "What's YOUR wild story?", "Beat this! 🎭"],
+            "inspirational": ["What challenge did you overcome?", "Share your transformation.",
+                            "Your journey inspires.", "What did you learn?"],
+        },
+    }
+    
+    # Get tone-specific CTAs for this pillar, with fallback
+    pillar_ctas = ctas.get(pillar_name, {})
+    tone_ctas = pillar_ctas.get(tone, pillar_ctas.get("friendly", ["Let us know what you think!"]))
+    
+    # Return a random CTA from the list
+    return random.choice(tone_ctas)
+
 def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
                  platform: str, brand_keywords: list[str], hashtags: list[str], goals: list[str], company: str = ""):
-    tone_blurb = {
-        "friendly": "Warm, encouraging, and conversational.",
-        "professional": "Clear, confident, and value-focused.",
-        "playful": "Upbeat, witty, and a bit cheeky.",
-        "inspirational": "Uplifting, thoughtful, and mission-driven."
-    }.get(tone.lower(), "Conversational and helpful.")
-
-    platform_hint = PLATFORM_HINTS.get(platform.lower(), "Make it concise and useful.")
-    brand_line = f" ({', '.join(brand_keywords)})" if brand_keywords else ""
-    goal_line = f"Focus: {', '.join(goals)}." if goals else ""
-
-    company_line = f"From {company}." if company else ""
-    body = (
-        f"{pillar_name} • {industry}{brand_line}\n"
-        f"{pillar_hint}\n\n"
-        f"{company_line}\n"
-        f"{goal_line}\n"
-        f"Tone: {tone_blurb}\n"
-        f"Platform tip: {platform_hint}\n\n"
-        f"CTA: Tell us what you think below 👇"
-    )
-
-    tags = " ".join(hashtags)
-    return f"{body}\n\n{tags}"
+    """Generate a natural, engaging social media caption using template-based NLP approach."""
+    
+    # Naturalize the hint to make it more conversational
+    natural_hint = naturalize_hint(pillar_hint, industry, brand_keywords)
+    # Capitalize first letter if needed
+    if natural_hint and natural_hint[0].islower():
+        natural_hint = natural_hint[0].upper() + natural_hint[1:]
+    
+    # Generate contextual CTA
+    cta = generate_cta(pillar_name, tone, platform)
+    
+    # Get appropriate templates for pillar and tone
+    templates = NATURAL_TEMPLATES.get(pillar_name, NATURAL_TEMPLATES["Educational"])
+    tone_templates = templates.get(tone, templates.get("friendly", templates["friendly"]))
+    
+    # Select a random template
+    template = random.choice(tone_templates)
+    
+    # Fill in the template with the natural hint
+    body = template.format(hint=natural_hint)
+    
+    # Add CTA on a new line for better readability
+    body = f"{body}\n\n{cta}"
+    
+    # Add company mention as a signature line
+    if company:
+        # Vary how we mention the company based on tone
+        if tone.lower() == "professional":
+            company_line = f"\n\n– {company}" if random.random() > 0.5 else ""
+        elif tone.lower() == "playful":
+            emoji_options = ["✨", "💙", "🎉", ""]
+            emoji = random.choice(emoji_options)
+            company_line = f"\n\n{emoji} {company}".strip() if random.random() > 0.6 else ""
+        else:
+            # Friendly, inspirational
+            company_line = f"\n\n💙 {company}" if random.random() > 0.5 else ""
+        
+        body = f"{body}{company_line}"
+    
+    # Add platform-specific formatting and hashtags
+    if platform.lower() == "twitter":
+        # Keep it shorter for Twitter
+        if len(body) > 240:
+            body = body[:237] + "..."
+        tags = " ".join(hashtags[:3])
+    elif platform.lower() == "linkedin":
+        tags = " ".join(hashtags[:5])
+    elif platform.lower() == "instagram":
+        tags = " ".join(hashtags[:12])
+    elif platform.lower() == "facebook":
+        tags = " ".join(hashtags[:8])
+    else:
+        tags = " ".join(hashtags[:8])
+    
+    # Add hashtags with proper spacing
+    return f"{body}\n\n{tags}".strip()
 
 def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], company: str = ""):
     kw = ", ".join(brand_keywords) if brand_keywords else "on-brand colors"
