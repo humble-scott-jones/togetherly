@@ -3,33 +3,192 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Admin</title>
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/static/styles.css">
+    <style>
+      .admin-table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin-top: 1rem;
+        font-size: 0.875rem;
+      }
+      .admin-table th { 
+        background: #f3f4f6; 
+        padding: 0.75rem; 
+        text-align: left; 
+        font-weight: 600;
+        border-bottom: 2px solid #e5e7eb;
+      }
+      .admin-table td { 
+        padding: 0.75rem; 
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .admin-table tr:hover { 
+        background: #f9fafb; 
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+      }
+      .badge-paid { background: #dcfce7; color: #166534; }
+      .badge-free { background: #fee2e2; color: #991b1b; }
+      .badge-admin { background: #dbeafe; color: #1e40af; }
+    </style>
   </head>
-  <body class="p-6">
-    <main>
-      <h1>Admin</h1>
+  <body class="bg-gray-50">
+    <header class="bg-white shadow-sm">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex justify-between items-center">
+          <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <a href="/" class="text-sm text-blue-600 hover:underline">← Back to Home</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
       {% if not allowed %}
-        <p>You are not authorized to view this page.</p>
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p class="text-red-800">You are not authorized to view this page.</p>
+        </div>
       {% else %}
-        <section aria-labelledby="reconcile-heading">
-          <h2 id="reconcile-heading">Reconcile Subscriptions</h2>
-          <p>Click the button below to fetch subscription state from Stripe and update local records.</p>
-          <button id="reconcile-btn" data-csrf="{{ session.get('admin_csrf') or '' }}">Run reconciliation</button>
-          <div id="status" aria-live="polite" style="margin-top:1rem"></div>
-          <pre id="output" style="white-space:pre-wrap;margin-top:1rem;max-height:40vh;overflow:auto;background:#f6f8fa;padding:8px;border-radius:4px"></pre>
+        <!-- Stats Overview -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm text-gray-500">Total Users</div>
+            <div id="stat-total-users" class="text-2xl font-bold text-gray-900">-</div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm text-gray-500">Paid Users</div>
+            <div id="stat-paid-users" class="text-2xl font-bold text-green-600">-</div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm text-gray-500">Free Users</div>
+            <div id="stat-free-users" class="text-2xl font-bold text-gray-600">-</div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm text-gray-500">Total Profiles</div>
+            <div id="stat-profiles" class="text-2xl font-bold text-blue-600">-</div>
+          </div>
         </section>
+
+        <!-- Users Table -->
+        <section class="bg-white rounded-lg shadow">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Users</h2>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="admin-table" id="users-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Subscription</th>
+                  <th>Stripe</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr>
+                  <td colspan="5" class="text-center text-gray-500">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Reconciliation Section -->
+        <section class="bg-white rounded-lg shadow mt-8" aria-labelledby="reconcile-heading">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 id="reconcile-heading" class="text-lg font-semibold text-gray-900">Reconcile Subscriptions</h2>
+          </div>
+          <div class="px-6 py-4">
+            <p class="text-sm text-gray-600 mb-4">Fetch subscription state from Stripe and update local records.</p>
+            <button id="reconcile-btn" data-csrf="{{ session.get('admin_csrf') or '' }}" 
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+              Run Reconciliation
+            </button>
+            <div id="status" aria-live="polite" class="mt-4 text-sm"></div>
+            <pre id="output" class="mt-4 p-4 bg-gray-50 rounded border border-gray-200 overflow-auto max-h-96 text-xs"></pre>
+          </div>
+        </section>
+
         <script>
+          // Load users data
+          async function loadUsers() {
+            try {
+              const res = await fetch('/api/admin/users', { credentials: 'include' });
+              const data = await res.json();
+              
+              if (!data.ok) {
+                document.getElementById('users-tbody').innerHTML = 
+                  '<tr><td colspan="5" class="text-center text-red-600">Error: ' + (data.error || 'Unknown error') + '</td></tr>';
+                return;
+              }
+
+              // Update stats
+              document.getElementById('stat-total-users').textContent = data.stats.total_users;
+              document.getElementById('stat-paid-users').textContent = data.stats.paid_users;
+              document.getElementById('stat-free-users').textContent = data.stats.free_users;
+              document.getElementById('stat-profiles').textContent = data.stats.profile_stats.total_profiles;
+
+              // Populate table
+              const tbody = document.getElementById('users-tbody');
+              if (data.users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-500">No users found</td></tr>';
+                return;
+              }
+
+              tbody.innerHTML = data.users.map(user => {
+                const statusBadge = user.is_paid 
+                  ? '<span class="badge badge-paid">Paid</span>' 
+                  : '<span class="badge badge-free">Free</span>';
+                const adminBadge = user.is_admin 
+                  ? '<span class="badge badge-admin ml-1">Admin</span>' 
+                  : '';
+                const subscription = user.subscription_status || 'None';
+                const stripe = user.has_stripe ? '✓' : '—';
+                const created = new Date(user.created_at).toLocaleDateString();
+
+                return `
+                  <tr>
+                    <td>${user.email}</td>
+                    <td>${statusBadge}${adminBadge}</td>
+                    <td>${subscription}</td>
+                    <td>${stripe}</td>
+                    <td>${created}</td>
+                  </tr>
+                `;
+              }).join('');
+            } catch (err) {
+              document.getElementById('users-tbody').innerHTML = 
+                '<tr><td colspan="5" class="text-center text-red-600">Error loading users: ' + err.message + '</td></tr>';
+            }
+          }
+
+          // Reconcile button handler
           document.getElementById('reconcile-btn').addEventListener('click', async function () {
             const statusEl = document.getElementById('status');
             const outEl = document.getElementById('output');
             statusEl.textContent = 'Running...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
             outEl.textContent = '';
+            
             try {
               const btn = document.getElementById('reconcile-btn');
               const csrf = btn.getAttribute('data-csrf');
-              const res = await fetch('/api/reconcile-job?wait=1', { method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': csrf } });
+              const res = await fetch('/api/reconcile-job?wait=1', { 
+                method: 'POST', 
+                credentials: 'include', 
+                headers: { 'X-CSRF-Token': csrf } 
+              });
+              
               statusEl.textContent = 'HTTP ' + res.status;
+              statusEl.className = res.ok ? 'mt-4 text-sm text-green-600' : 'mt-4 text-sm text-red-600';
+              
               const j = await res.json().catch(()=>null);
               if (j && j.job && j.job.result) {
                 try {
@@ -43,11 +202,17 @@
               } else {
                 outEl.textContent = 'No response';
               }
+              
+              // Reload users after reconciliation
+              loadUsers();
             } catch (err) {
-              statusEl.textContent = 'Error';
-              outEl.textContent = String(err);
+              statusEl.textContent = 'Error: ' + err.message;
+              statusEl.className = 'mt-4 text-sm text-red-600';
             }
           });
+
+          // Load users on page load
+          loadUsers();
         </script>
       {% endif %}
     </main>
