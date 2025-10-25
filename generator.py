@@ -3,6 +3,18 @@ from typing import Optional
 import os
 import random
 
+# Optional OpenAI integration for enhanced post generation
+USE_OPENAI_FOR_POSTS = bool(os.getenv("OPENAI_API_KEY")) and os.getenv("USE_OPENAI_FOR_POSTS", "0") == "1"
+if USE_OPENAI_FOR_POSTS:
+    try:
+        from openai import OpenAI
+        _openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    except Exception:
+        USE_OPENAI_FOR_POSTS = False
+        _openai_client = None
+else:
+    _openai_client = None
+
 PILLARS_BY_DEFAULT = [
     ("Educational", "Share a quick tip that solves a common problem for your audience."),
     ("Behind-the-Scenes", "Show a candid look at your process, team, or workspace."),
@@ -308,6 +320,57 @@ def generate_cta(pillar_name: str, tone: str, platform: str) -> str:
     # Return a random CTA from the list
     return random.choice(tone_ctas)
 
+def enhance_caption_with_ai(caption_draft: str, industry: str, tone: str, platform: str, company: str = "") -> str:
+    """
+    Optionally enhance a caption using OpenAI for more sophisticated, natural language.
+    Falls back to the original caption if OpenAI is not available or fails.
+    """
+    if not USE_OPENAI_FOR_POSTS or not _openai_client:
+        return caption_draft
+    
+    try:
+        # Create a prompt for OpenAI to enhance the caption
+        system_prompt = f"""You are an expert social media copywriter specializing in {platform} content.
+Your task is to enhance social media captions to be more engaging, natural, and effective while maintaining the core message.
+Keep the tone {tone} and preserve any hashtags provided."""
+        
+        company_context = f" for {company}" if company else ""
+        user_prompt = f"""Enhance this {industry} social media caption{company_context}:
+
+{caption_draft}
+
+Requirements:
+- Keep it natural and engaging
+- Maintain the {tone} tone
+- Keep it appropriate for {platform}
+- Preserve all hashtags at the end
+- Keep the length similar (don't make it much longer)
+- Make it feel more human and less template-like
+
+Enhanced caption:"""
+        
+        response = _openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        
+        enhanced = response.choices[0].message.content.strip()
+        
+        # Basic validation: if the enhanced version is too different or broken, use original
+        if enhanced and len(enhanced) > 20 and '#' in enhanced:
+            return enhanced
+        else:
+            return caption_draft
+            
+    except Exception as e:
+        # If anything fails, just return the original caption
+        return caption_draft
+
 def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
                  platform: str, brand_keywords: list[str], hashtags: list[str], goals: list[str], company: str = ""):
     """Generate a natural, engaging social media caption using template-based NLP approach."""
@@ -364,8 +427,14 @@ def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,
     else:
         tags = " ".join(hashtags[:8])
     
-    # Add hashtags with proper spacing
-    return f"{body}\n\n{tags}".strip()
+    # Create the final caption
+    final_caption = f"{body}\n\n{tags}".strip()
+    
+    # Optionally enhance with AI if enabled
+    if USE_OPENAI_FOR_POSTS:
+        final_caption = enhance_caption_with_ai(final_caption, industry, tone, platform, company)
+    
+    return final_caption
 
 def image_prompt(industry: str, pillar_name: str, brand_keywords: list[str], company: str = ""):
     kw = ", ".join(brand_keywords) if brand_keywords else "on-brand colors"
