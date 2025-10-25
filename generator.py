@@ -361,14 +361,28 @@ Enhanced caption:"""
         
         enhanced = response.choices[0].message.content.strip()
         
-        # Basic validation: if the enhanced version is too different or broken, use original
-        if enhanced and len(enhanced) > 20 and '#' in enhanced:
-            return enhanced
-        else:
-            return caption_draft
+        # Validate the enhanced version more thoroughly
+        # Check basic structure, hashtags, and length
+        has_hashtags = '#' in enhanced
+        reasonable_length = 20 < len(enhanced) < 1000
+        has_content = enhanced and not enhanced.isspace()
+        
+        # Verify hashtags are preserved (at least some of them)
+        original_hashtags = [tag for tag in caption_draft.split() if tag.startswith('#')]
+        if has_hashtags and reasonable_length and has_content:
+            # Additional check: ensure at least some hashtags are preserved
+            enhanced_has_tags = any(tag in enhanced for tag in original_hashtags[:3])
+            if enhanced_has_tags or len(original_hashtags) == 0:
+                return enhanced
+        
+        # If validation fails, return original
+        return caption_draft
             
     except Exception as e:
-        # If anything fails, just return the original caption
+        # Log the error for debugging (in development mode)
+        if os.getenv('FLASK_ENV') == 'development' or os.getenv('ALLOW_DEV_DEBUG') == '1':
+            print(f"[AI Enhancement] Failed to enhance caption: {type(e).__name__}: {str(e)}")
+        # Always fall back to original caption on any error
         return caption_draft
 
 def make_caption(industry: str, tone: str, pillar_name: str, pillar_hint: str,

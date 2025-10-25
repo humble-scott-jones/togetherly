@@ -80,7 +80,7 @@ For even more sophisticated posts, enable OpenAI integration:
 
 1. Set environment variables:
    ```bash
-   export OPENAI_API_KEY="sk-proj-your-api-key"
+   export OPENAI_API_KEY="sk-proj-REPLACE_WITH_YOUR_ACTUAL_API_KEY"
    export USE_OPENAI_FOR_POSTS="1"
    ```
 
@@ -203,7 +203,7 @@ Potential improvements:
 # (No special configuration needed - works out of the box)
 
 # Optional: Enable AI enhancement
-OPENAI_API_KEY=sk-proj-your-api-key-here
+OPENAI_API_KEY=sk-proj-REPLACE_WITH_YOUR_ACTUAL_API_KEY
 USE_OPENAI_FOR_POSTS=1  # Set to "1" to enable
 ```
 
